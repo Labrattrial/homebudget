@@ -1,0 +1,124 @@
+body {
+    background-color: #cce6ff;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+  
+  .signup-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .signup-card {
+    background-color: #427ca1;
+    padding: 40px 30px;
+    border-radius: 20px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  }
+  
+  .avatar img {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin-bottom: 20px;
+  }
+  
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  input[type="text"],
+  input[type="email"],
+  input[type="password"] {
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+  }
+  
+  .register-btn {
+    background-color: #fff;
+    color: #000;
+    font-weight: 600;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .register-btn:hover {
+    background-color: #f3f4f6;
+  }
+  
+  .terms-check {
+    font-size: 0.9rem;
+    color: #e6f2ff;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .terms-check a {
+    color: #fff;
+    text-decoration: underline;
+  }
+  
+  /* OTP Modal Styling */
+  .otp-card {
+    background-color: #427ca1;
+    border-radius: 20px;
+    padding: 30px;
+    color: white;
+    text-align: center;
+  }
+  
+  .otp-text {
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  
+  .otp-inputs {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .otp-inputs input {
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    font-size: 24px;
+    border: none;
+    border-radius: 5px;
+    background-color: white;
+  }
+  
+  .otp-submit-btn {
+    background-color: white;
+    color: #427ca1;
+    border: none;
+    padding: 10px 25px;
+    font-weight: bold;
+    border-radius: 10px;
+    transition: 0.3s;
+  }
+  
+  .otp-submit-btn:hover {
+    background-color: #f0f0f0;
+  }
+  

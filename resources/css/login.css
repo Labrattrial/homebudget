@@ -1,0 +1,183 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  body, html {
+    height: 100%;
+  }
+  
+  .container {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+  }
+  
+  .left-panel {
+    flex: 7;
+    background-color: #f4f6f8;
+    padding: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .left-content {
+    width: 100%;
+    max-width: 320px;
+  }
+  
+  .login-form {
+    width: 100%;
+  }
+  
+  .input-group {
+    margin-bottom: 25px;
+  }
+  
+  label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+    text-align: left;
+    width: 60%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  input {
+    width: 60%;
+    margin: 0 auto;
+    display: block;
+    padding: 12px 14px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 1rem;
+  }
+  
+  .password-wrapper {
+    position: relative;
+    width: 60%;
+    margin: 0 auto;
+  }
+  
+  .password-wrapper input {
+    width: 100%;
+    padding-right: 40px;
+  }
+  
+  .toggle-password {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    cursor: pointer;
+  }
+  
+  .toggle-password i {
+    font-size: 18px;
+    color: #888;
+  }
+  
+  .sign-in-btn {
+    background-color: #427ca1;
+    color: white;
+    width: 60%;
+    padding: 12px 14px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin: 10px auto 0 auto;
+    display: block;
+  }
+  
+  .sign-up-btn {
+    background-color: white;
+    color: #427ca1;
+    font-weight: 600;
+    padding: 12px 20px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 20px;
+  }
+  
+  .right-panel {
+    flex: 3;
+    background-color: #427ca1;
+    color: #fff;
+    padding: 80px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  h1, h2 {
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+  }
+  
+  .subtitle, .info-text {
+    font-size: 1.1rem;
+    margin-bottom: 40px;
+  }
+  
+  .alert {
+    padding: 12px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    text-align: left;
+  }
+  
+  .alert-success {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .alert-danger {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+  
+  .field-error {
+    color: #e63946;
+    font-size: 0.9rem;
+    margin-top: 6px;
+    text-align: left;
+    width: 60%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  ul {
+    padding-left: 20px;
+  }
+  
+  @media (max-width: 768px) {
+    .container {
+      flex-direction: column;
+    }
+  
+    .left-panel, .right-panel {
+      flex: unset;
+      width: 100%;
+      padding: 40px;
+    }
+  
+    .right-panel {
+      text-align: left;
+    }
+  
+    .left-content {
+      max-width: 100%;
+    }
+  }
+  

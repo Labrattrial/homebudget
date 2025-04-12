@@ -1,0 +1,64 @@
+  version: '3.8'
+
+  services:
+    app:
+      image: php:8.2-fpm
+      container_name: homebudget-app
+      working_dir: /var/www/html
+      volumes:
+        - .:/var/www/html
+      command: >
+        sh -c "apt-get update &&
+              apt-get install -y libzip-dev zip unzip libonig-dev libxml2-dev &&
+              docker-php-ext-install pdo pdo_mysql zip mbstring bcmath &&
+              php-fpm"
+      networks:
+        - homebudget-network
+
+
+    nginx:
+      image: nginx:alpine
+      container_name: homebudget-nginx
+      ports:
+        - 8000:80
+      volumes:
+        - .:/var/www/html
+        - ./nginx/conf.d:/etc/nginx/conf.d
+      depends_on:
+        - app
+        - db 
+      networks:
+        - homebudget-network
+
+    db:
+      image: mysql:8.0
+      container_name: homebudget-db
+      environment:
+        MYSQL_ROOT_PASSWORD: secret
+        MYSQL_DATABASE: homebudget
+      ports:
+        - 3306:3306
+      volumes:
+        - db-data:/var/lib/mysql 
+      networks:
+        - homebudget-network
+
+    phpmyadmin:
+      image: phpmyadmin/phpmyadmin
+      container_name: homebudget-phpmyadmin
+      environment:
+        PMA_HOST: db
+        MYSQL_ROOT_PASSWORD: secret
+      ports:
+        - 8080:80
+      depends_on:
+        - db
+      networks:
+        - homebudget-network
+
+  networks:
+    homebudget-network:
+      driver: bridge
+
+  volumes:
+    db-data:  
