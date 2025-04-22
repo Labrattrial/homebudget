@@ -6,6 +6,7 @@ use Tests\TestCase;
 use App\Models\Transaction;
 use App\Models\Category;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MainDashboardController;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\View;
 
@@ -20,8 +21,8 @@ class DashboardControllerTest extends TestCase
         Category::factory()->count(3)->create();
 
         // Act
-        $controller = new DashboardController();
-        $response = $controller->index();
+        $controller = new MainDashboardController();
+        $response = $controller->showDashboard();
 
         // Assert
         $expected = 1000;

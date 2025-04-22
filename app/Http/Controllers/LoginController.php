@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class LoginController extends Controller
@@ -26,8 +27,6 @@ class LoginController extends Controller
             ],
             'password' => [
                 'required',
-             
-                
             ],
         ], [
             'email.required' => 'Email is required.',
@@ -43,22 +42,23 @@ class LoginController extends Controller
             return back()->withErrors(['email' => 'No account found with this email.']);
         }
 
-        // Check password match
+        // Check password match using Hash::check
         if (!Hash::check($validated['password'], $user->password)) {
             return back()->withErrors(['password' => 'Invalid password.']);
         }
 
-        // Log user in
-        session(['user' => $user]);
+        // Log user in using Auth facade
+        Auth::login($user);
 
         // Redirect to dashboard with success message
-        return redirect()->route('dashboard')->with('success', 'Login successful!');
+        return redirect()->route('user.dashboard')->with('success', 'Login successful!');
     }
 
     // Logout
     public function logout()
     {
-        session()->forget('user');
+        Auth::logout(); // Use Auth's logout method instead of manually clearing the session
         return redirect()->route('login')->with('success', 'Logged out successfully.');
     }
 }
+

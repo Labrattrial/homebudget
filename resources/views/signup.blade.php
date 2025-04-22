@@ -7,9 +7,16 @@
 
   <!-- Bootstrap CSS for Modal -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <!-- Font Awesome for Eye Icon -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   @vite(['resources/css/signup.css'])
 </head>
 <body>
+  <!-- Loader -->
+  <div id="loader">
+    <div class="spinner"></div>
+  </div>
+
   <div class="signup-wrapper">
     <div class="signup-card">
       <div class="avatar">
@@ -62,22 +69,34 @@
         />
 
         <!-- Password -->
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          required
-          pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}"
-          title="Password must be at least 8 characters, include an uppercase letter, a lowercase letter, and a number."
-        />
+        <div class="password-group">
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Password"
+            required
+            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}"
+            title="Password must be at least 8 characters, include an uppercase letter, a lowercase letter, and a number."
+          />
+          <span class="toggle-password" onclick="togglePassword('password', this)">
+            <i class="fas fa-eye"></i>
+          </span>
+        </div>
 
         <!-- Confirm Password -->
-        <input
-          type="password"
-          name="password_confirmation"
-          placeholder="Confirm Password"
-          required
-        />
+        <div class="password-group">
+          <input
+            type="password"
+            id="confirmPassword"
+            name="password_confirmation"
+            placeholder="Confirm Password"
+            required
+          />
+          <span class="toggle-password" onclick="togglePassword('confirmPassword', this)">
+            <i class="fas fa-eye"></i>
+          </span>
+        </div>
 
         <!-- Terms and Conditions -->
         <label class="terms-check">
@@ -86,7 +105,9 @@
         </label>
 
         <!-- Submit Button -->
-        <button type="submit" class="register-btn">Register</button>
+        <button type="submit" class="register-btn" id="registerBtn">
+          Register
+        </button>
       </form>
     </div>
   </div>
@@ -100,17 +121,65 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p>PWelcome to Home Budget. By accessing or using our website and services, you agree to comply with and be bound by the following Terms and Conditions. If you do not agree with these Terms, please do not use our service. Home Budget is intended for personal finance management only. You must be at least 13 years old or have parental or guardian consent to use the application. You are responsible for maintaining the confidentiality of your account and any activity under your login credentials.
+          <p>
+            Welcome to Home Budget. By accessing or using our website and services, you agree to comply with and be bound by the following Terms and Conditions. If you do not agree with these Terms, please do not use our service.
 
-By using our services, you consent to the collection, storage, and processing of your personal data in accordance with our Privacy Policy. We are committed to protecting your privacy and will not share or sell your data to third parties unless required by law. All content, features, and designs within the Home Budget platform are the property of the developer and are protected by copyright and intellectual property laws. You may not reproduce, distribute, or modify any part of the application without written permission.
-Home Budget is provided on an "as-is" and "as-available" basis. We make no warranties, express or implied, regarding the functionality or availability of the service and shall not be held liable for any financial losses, data loss, or damages resulting from your use or inability to use the application. We reserve the right to modify these Terms at any time. Any continued use of the application after updates constitutes your acceptance of the revised Terms.
+            Home Budget is intended for personal finance management only. You must be at least 13 years old or have parental or guardian consent to use the application. You are responsible for maintaining the confidentiality of your account and any activity under your login credentials.
 
-We also reserve the right to terminate or suspend your access to the application at any time, without prior notice, if we believe you have violated any part of these Terms. For questions or concerns regarding these Terms and Conditions, please contact us at [your-email@example.com].</p>
+            By using our services, you consent to the collection, storage, and processing of your personal data in accordance with our Privacy Policy. We are committed to protecting your privacy and will not share or sell your data to third parties unless required by law.
+
+            All content, features, and designs within the Home Budget platform are the property of the developer and are protected by copyright and intellectual property laws. You may not reproduce, distribute, or modify any part of the application without written permission.
+
+            Home Budget is provided on an "as-is" and "as-available" basis. We make no warranties, express or implied, regarding the functionality or availability of the service and shall not be held liable for any financial losses, data loss, or damages resulting from your use or inability to use the application.
+
+            We reserve the right to modify these Terms at any time. Any continued use of the application after updates constitutes your acceptance of the revised Terms.
+
+            We also reserve the right to terminate or suspend your access to the application at any time, without prior notice, if we believe you have violated any part of these Terms.
+
+            For questions or concerns regarding these Terms and Conditions, please contact us at [your-email@example.com].
+          </p>
         </div>
       </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Loader fade out
+    window.addEventListener("load", () => {
+      const loader = document.getElementById("loader");
+      loader.classList.add("fade-out");
+      setTimeout(() => loader.style.display = "none", 500);
+    });
+
+    // Toggle password visibility
+    function togglePassword(id, el) {
+      const input = document.getElementById(id);
+      const icon = el.querySelector('i');
+      if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash");
+      } else {
+        input.type = "password";
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+      }
+    }
+  </script>
+
+  <script>
+    // Show loader on Register button click
+    const signupForm = document.getElementById("signupForm");
+    const registerBtn = document.getElementById("registerBtn");
+
+    signupForm.addEventListener("submit", function (e) {
+      registerBtn.disabled = true;
+      registerBtn.innerHTML = `
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        Registering...
+      `;
+    });
+  </script>
 </body>
 </html>

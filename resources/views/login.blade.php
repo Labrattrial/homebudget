@@ -8,6 +8,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
+  <!-- Loader -->
+  <div id="loader">
+      <div class="spinner"></div>
+    </div>
+
   <div class="container">
     <div class="left-panel">
       <h1>Welcome</h1>
@@ -70,14 +76,20 @@
           </div>
         @endif
 
-        <button type="submit" class="sign-in-btn">Sign In</button>
+        <!-- Login Button -->
+      <button type="submit" class="sign-in-btn" id="loginBtn">
+        Sign In
+      </button>
       </form>
     </div>
 
     <div class="right-panel">
       <h2>New Here?</h2>
       <p class="info-text">Create an account and take control of your finances effortlessly.</p>
-      <button class="sign-up-btn" onclick="window.location.href='{{ route('signup') }}'">Create Account</button>
+      <!-- Create Account Button -->
+      <button type="button" class="sign-up-btn" id="createAccountBtn" onclick="window.location.href='{{ route('signup') }}'">
+        Create Account
+      </button>
     </div>
   </div>
 
@@ -105,5 +117,44 @@
       visible = !visible;
     }
   </script>
+
+  <script>
+    // Hide loader when the page fully loads
+    window.addEventListener('load', () => {
+      const loader = document.getElementById('loader');
+      loader.style.opacity = '0';
+      setTimeout(() => loader.style.display = 'none', 300); // Fade out
+    });
+  </script>
+
+  <script>
+    // Show loader on Login button click
+    const loginForm = document.querySelector("form.login-form");
+    const loginBtn = document.getElementById("loginBtn");
+
+    loginForm.addEventListener("submit", function (e) {
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = `
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        Logging In...
+      `;
+    });
+  </script>
+
+  <script>
+    // Show loader on Create Account button click
+    const createAccountBtn = document.getElementById("createAccountBtn");
+
+    createAccountBtn.addEventListener("click", function () {
+      createAccountBtn.disabled = true;
+      createAccountBtn.innerHTML = `
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        Redirecting...
+      `;
+    });
+  </script>
+
+
+
 </body>
 </html>

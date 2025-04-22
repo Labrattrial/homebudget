@@ -1,4 +1,5 @@
 <?php
+// app/Models/Category.php
 
 namespace App\Models;
 
@@ -16,3 +17,4 @@ class Category extends Model
         return $this->hasMany(Transaction::class);
     }
 }
+

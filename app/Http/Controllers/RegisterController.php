@@ -70,7 +70,7 @@ class RegisterController extends Controller
             $auth = auth();
             $auth->login($user);
 
-            session()->flash('success', 'Registration successful! You are now logged in.');
+            session()->flash('success', 'Registration successful! You are now proceeding to login page.');
 
             // Redirect to login or dashboard
             return redirect()->route('login');
