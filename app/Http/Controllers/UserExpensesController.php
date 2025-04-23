@@ -14,20 +14,14 @@ class UserExpensesController extends Controller
     {
         // Fetch categories and transactions for the authenticated user
         $categories = Category::all();
-        $expenses = Transaction::where('user_id', Auth::id())->get();
+        $expenses = Transaction::where('user_id', Auth::id())
+            ->with('category') // Eager load category relationship
+            ->orderBy('date', 'desc')
+            ->get();
 
         // Calculate category-wise expense summary
-        $categorySummary = $expenses->groupBy('category_id')->map(function ($transactions, $categoryId) {
-            return $transactions->sum('amount');
-        });
+        $categorySummary = $this->calculateCategorySummary($expenses);
 
-        // Replace category IDs with category names in the summary
-        $categorySummary = $categorySummary->mapWithKeys(function ($total, $categoryId) {
-            $categoryName = Category::find($categoryId)->name ?? 'Unknown';
-            return [$categoryName => $total];
-        });
-
-        // Pass the variables to the view
         return view('pages.expenses', compact('categories', 'expenses', 'categorySummary'));
     }
 
@@ -40,32 +34,34 @@ class UserExpensesController extends Controller
             'date' => 'required|date',
         ]);
 
-        // Save expense to the database
-        $expense = new Transaction();
-        $expense->user_id = Auth::id(); // Associate user
-        $expense->category_id = $request->category_id;
-        $expense->amount = $request->amount;
-        $expense->date = $request->date;
-        $expense->save();
+        $expense = Transaction::create([
+            'user_id' => Auth::id(),
+            'category_id' => $request->category_id,
+            'amount' => $request->amount,
+            'date' => $request->date,
+        ]);
 
-        // Return a JSON response with the newly created expense
+        // Get updated expenses to calculate new summary
+        $expenses = Transaction::where('user_id', Auth::id())->get();
+        $categorySummary = $this->calculateCategorySummary($expenses);
+
         return response()->json([
             'success' => true,
-            'data' => $expense,
+            'data' => $expense->load('category'), // Load category relationship
+            'categorySummary' => $categorySummary,
         ]);
     }
 
     // Edit an existing transaction (expense)
     public function edit($id)
     {
-        $transaction = Transaction::findOrFail($id);
+        $transaction = Transaction::with('category')->findOrFail($id);
 
-        // Ensure the transaction belongs to the authenticated user
         if ($transaction->user_id !== Auth::id()) {
             abort(403, 'Unauthorized action.');
         }
 
-        return response()->json($transaction); // Return data as JSON for frontend
+        return response()->json($transaction);
     }
 
     // Update an existing transaction
@@ -79,7 +75,6 @@ class UserExpensesController extends Controller
 
         $transaction = Transaction::findOrFail($id);
 
-        // Ensure the transaction belongs to the authenticated user
         if ($transaction->user_id !== Auth::id()) {
             abort(403, 'Unauthorized action.');
         }
@@ -90,10 +85,14 @@ class UserExpensesController extends Controller
             'date' => $request->date,
         ]);
 
-        // Return a JSON response with the updated transaction
+        // Get updated expenses to calculate new summary
+        $expenses = Transaction::where('user_id', Auth::id())->get();
+        $categorySummary = $this->calculateCategorySummary($expenses);
+
         return response()->json([
             'success' => true,
-            'data' => $transaction,
+            'data' => $transaction->load('category'),
+            'categorySummary' => $categorySummary,
         ]);
     }
 
@@ -102,17 +101,29 @@ class UserExpensesController extends Controller
     {
         $transaction = Transaction::findOrFail($id);
 
-        // Ensure the transaction belongs to the authenticated user
         if ($transaction->user_id !== Auth::id()) {
             abort(403, 'Unauthorized action.');
         }
 
         $transaction->delete();
 
-        // Return a JSON response indicating success
+        // Get updated expenses to calculate new summary
+        $expenses = Transaction::where('user_id', Auth::id())->get();
+        $categorySummary = $this->calculateCategorySummary($expenses);
+
         return response()->json([
             'success' => true,
             'message' => 'Expense deleted successfully.',
+            'categorySummary' => $categorySummary,
         ]);
+    }
+
+    // Helper method to calculate category summary
+    private function calculateCategorySummary($expenses)
+    {
+        return $expenses->groupBy('category_id')->mapWithKeys(function ($transactions, $categoryId) {
+            $categoryName = Category::find($categoryId)->name ?? 'Unknown';
+            return [$categoryName => $transactions->sum('amount')];
+        });
     }
 }

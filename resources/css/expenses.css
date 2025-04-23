@@ -194,48 +194,83 @@ body {
 
   /* Category Breakdown Section */
   
-.category-breakdown-active .add-btn {
-    display: none;
+  #categoryBreakdownSection {
+    display: none; /* Hidden by default, shown when tab is active */
+    flex-direction: column;
+    width: 100%;
+    padding: 1.5rem;
+  }
+  
+  .chart-container {
+    position: relative;
+    width: 100%;
+    height: 500px; /* Fixed height for chart */
+    margin: 1rem 0;
+  }
+  
+  #categoryBreakdownChart {
+    width: 400px !important;
+    height: 400px !important;
+    min-height: 300px; /* Minimum height to prevent chart from disappearing */
+  }
+  
+  /* Ensure chart canvas has proper dimensions */
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  
+  /* Breakdown list improvements */
+  .breakdown-list {
+    width: 100%;
+    max-width: 500px;
+    margin: 1rem auto 0;
+  }
+  
+  /* Tab-specific adjustments */
+  .category-breakdown-active {
+    display: block;
+  }
+  
+  /* Modal z-index adjustment to appear above chart */
+  .modal {
+    z-index: 1000;
   }
 
-.category-breakdown {
-    background-color: #d2e9fb;
-    padding: 1.5rem;
-    border-radius: 12px;
+  .no-data-message {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-style: italic;
   }
   
-  .category-summary {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    font-weight: bold;
-    font-size: 1rem;
-    margin-bottom: 1.5rem;
-    flex-wrap: wrap;
-    gap: 1rem;
-  }
-  
-  .category-summary span {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  
-  .chart-card {
-    background-color: white;
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .chart-image {
-    max-width: 100%;
-    height: auto;
+  .no-data {
+    display: block;
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-style: italic;
+    background-color: #f9f9f9;
     border-radius: 8px;
-    max-width: 400px; /* Optional: limit size for placeholder */
+    margin-top: 10px;
+  }
+
+  .invalid {
+    border-color: #f44336 !important;
+    animation: shake 0.5s;
+  }
+  
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-5px); }
+    40%, 80% { transform: translateX(5px); }
+  }
+  
+  .expense-card .invalid-field {
+    color: #f44336;
+    font-size: 0.8em;
+    display: block;
   }
 
   /* Spinner Styles */
@@ -295,6 +330,20 @@ body {
   margin: 0 auto; /* extra insurance for centering */
 }
 
+.chart-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #666;
+  font-style: italic;
+}
+
+.chart-container {
+  position: relative;
+  min-height: 200px;
+}
+
 .breakdown-list {
   display: flex;
   flex-direction: column;
@@ -328,6 +377,34 @@ body {
   padding: 1.5rem;
 }
 
+
+/* delete */
+.delete-icon {
+  position: relative;
+  display: inline-block;
+}
+
+.delete-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  display: none;
+}
+
+.delete-icon.loading .fa-trash {
+  visibility: hidden;
+}
+
+.delete-icon.loading .delete-spinner {
+  display: block;
+}
 
   /* Responsive Design */
   @media (max-width: 600px) {
