@@ -1,132 +1,177 @@
 @extends('layouts.main')
 
 @section('content')
+<link href="{{ asset('resources/css/dashboard.css') }}" rel="stylesheet">
+<script src="{{ asset('resources/js/chart.js') }}"></script>
+
 <div class="welcome-card">
   <div>
-    <h1>Welcome, {{ $user->name ?? 'User' }}!</h1>
+    <h1>Welcome, {{ isset($user->name) ? $user->name : 'User' }}!</h1>
     <p>Here's a quick overview of your finances</p>
   </div>
   <i class="fas fa-coins fa-3x"></i>
 </div>
 
 <div class="stats">
-  <!-- NET WORTH CARD -->
-  <div class="card" id="netWorthCard">
-    <i class="fas fa-piggy-bank fa-2x" style="color:#4b8dbf;"></i>
-    <h3>MY NET WORTH</h3>
-    <div class="budget-wrapper">
-      <input type="number" class="set-budget-input" id="budgetInput" placeholder="Set Budget" />
-      <button class="set-budget-btn" id="setBudgetBtn">Set</button>
-    </div>
-    <div class="budget-amounts">
-      <p class="amount">Spent: ₱<span id="totalExpenses">{{ number_format($totalExpenses, 2) }}</span></p>
-      <p class="amount">Balance: ₱<span id="balance">{{ number_format($balance, 2) }}</span></p>
-      <p class="amount" id="budgetMarker" style="display: none;">Budget: ₱<span id="budgetAmount"></span></p>
-    </div>
-    <small>Last 30 Days</small>
+  <!-- MONTHLY BUDGET PLANNER -->
+  <div class="card">
+    <h3>MONTHLY BUDGET PLANNER</h3>
+    <table class="budget-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Spent This Month</th>
+          <th>Budget Limit</th>
+          <th>Remaining</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($categoryAnalysis as $category)
+        <tr>
+          <td>{{ $category['name'] }}</td>
+          <td>₱{{ number_format($category['spent'], 2) }}</td>
+          <td>₱{{ isset($category['budget']) ? number_format($category['budget'], 2) : number_format(0, 2) }}</td>
+          <td class="{{ (isset($category['remaining']) && $category['remaining'] < 0) ? 'text-danger' : '' }}">
+            {{ isset($category['remaining']) ? '₱'.number_format($category['remaining'], 2) : 'N/A' }}
+          </td>
+        </tr>
+        @endforeach
+      </tbody>
+    </table>
   </div>
 
   <!-- CATEGORY BREAKDOWN -->
-<div class="card">
-  <i class="fas fa-chart-pie fa-2x" style="color:#4b8dbf;"></i>
-  <h3>CATEGORY BREAKDOWN</h3>
-  <div style="display: flex; justify-content: center; align-items: center; gap: 2rem; flex-wrap: wrap;">
-    <div class="fake-pie"></div>
-    <div>
-      @if(count($categoryData) > 0)
-        <ul style="padding-left: 1rem; text-align: left;">
-          @foreach($categoryData as $category)
-            <li>{{ $category['name'] }}: ₱{{ number_format($category['total'], 2) }}</li>
-          @endforeach
-        </ul>
-      @else
-        <p>No category data available.</p>
-      @endif
+  <div class="card">
+    <i class="fas fa-chart-pie fa-2x" style="color:#4b8dbf;"></i>
+    <h3>CATEGORY BREAKDOWN</h3>
+    <div style="height: 300px;">
+      <canvas id="pieChart"></canvas>
+      <div class="chart-loading" style="display: none;">Loading data...</div>
+      <div class="chart-error" style="display: none;">Error loading chart data</div>
+      <div class="no-data-message" style="display: none;">No expenses recorded yet</div>
+    </div>
+  </div>
+
+  <!-- MONTHLY EXPENSES -->
+  <div class="card">
+    <i class="fas fa-chart-bar fa-2x" style="color:#4b8dbf;"></i>
+    <h3>MONTHLY EXPENSES</h3>
+    <div style="height: 300px;">
+      <canvas id="barChart"></canvas>
+      <div class="chart-loading" style="display: none;">Loading data...</div>
+      <div class="chart-error" style="display: none;">Error loading chart data</div>
+      <div class="no-data-message" style="display: none;">No expenses recorded yet</div>
     </div>
   </div>
 </div>
 
-
-<!-- MONTHLY EXPENSES -->
-<div class="card">
-  <i class="fas fa-chart-bar fa-2x" style="color:#4b8dbf;"></i>
-  <h3>MONTHLY EXPENSES</h3>
-  <div class="fake-bar-graph">
-    @if($totalExpenses > 0)
-      @foreach($categoryData as $category)
-        @php
-          // Ensure height is a valid number
-          $height = $totalExpenses > 0 ? round(($category['total'] / $totalExpenses) * 100, 2) : 0;
-        @endphp
-        <div class="bar-container">
-        <div class="bar" style="height: '{{ is_numeric($height) ? $height : 0 }}%';"></div>
-          <span class="bar-name">{{ $category['name'] }}</span>
-        </div>
-      @endforeach
-    @else
-      <p>No expenses recorded for this month.</p>
-    @endif
-  </div>
-</div>
-
-
-
-<div id="notification" class="notification" style="display: none;"></div>
-
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const setBudgetBtn = document.getElementById('setBudgetBtn');
-    const budgetInput = document.getElementById('budgetInput');
-    const budgetMarker = document.getElementById('budgetMarker');
-    const budgetAmount = document.getElementById('budgetAmount');
-    const totalExpenses = parseFloat(document.getElementById('totalExpenses').innerText.replace(',', ''));
-    const notification = document.getElementById('notification');
-
-    let budget = 0;
-
-    setBudgetBtn.addEventListener('click', () => {
-      const inputValue = parseFloat(budgetInput.value);
-      if (isNaN(inputValue) || inputValue <= 0) {
-        alert('Please enter a valid budget.');
-        return;
+  // Chart configurations
+  var pieChartConfig = {
+    type: 'pie',
+    data: {
+      labels: JSON.parse(`{!! json_encode(array_column($categoryData, 'name')) !!}`),
+      datasets: [{
+        data: JSON.parse(`{!! json_encode(array_column($categoryData, 'total')) !!}`),
+        backgroundColor: [
+          '#4b8dbf', '#3a6f96', '#2a516d', '#193244', '#08141b',
+          '#5da5d8', '#4c94c7', '#3b83b6', '#2a72a5', '#196194'
+        ],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      tooltips: {
+        callbacks: {
+          label: function(tooltipItem, data) {
+            var label = data.labels[tooltipItem.index] || '';
+            var value = data.datasets[0].data[tooltipItem.index];
+            return label + ': ₱' + value.toFixed(2);
+          }
+        }
       }
+    }
+  };
 
-      budget = inputValue;
-      budgetAmount.innerText = budget.toLocaleString();
-      budgetMarker.style.display = 'block';
-      setBudgetBtn.style.display = 'none';
-      budgetInput.style.display = 'none';
-
-      checkBudget(totalExpenses, budget);
-    });
-
-    const checkBudget = (expenses, budget) => {
-      const percentage = (expenses / budget) * 100;
-      if (percentage >= 85 && percentage < 100) {
-        showNotification('warning', 'You are near your budget limit.');
-      } else if (percentage >= 100) {
-        showNotification('error', 'You have exceeded your budget!');
-      } else {
-        hideNotification();
+  var barChartConfig = {
+    type: 'bar',
+    data: {
+      data: JSON.parse(`{!! json_encode(array_column($categoryData, 'name')) !!}`),
+      datasets: [{
+        label: 'Amount Spent (₱)',
+        data: JSON.parse(`{!! json_encode(array_column($categoryData, 'total')) !!}`),
+        backgroundColor: '#4b8dbf',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        yAxes: [{
+          ticks: {
+            beginAtZero: true
+          }
+        }]
       }
-    };
+    }
+  };
 
-    const showNotification = (type, message) => {
-      notification.style.display = 'block';
-      notification.className = 'notification ' + type;
-      notification.innerText = message;
-    };
-
-    const hideNotification = () => {
-      notification.style.display = 'none';
-    };
-
-    document.querySelectorAll('.bar').forEach(bar => {
-      const height = bar.dataset.height;
-      if (height) {
-        bar.style.height = height + '%';
+  // Initialize charts when DOM is loaded
+  document.addEventListener('DOMContentLoaded', function() {
+    try {
+      // Pie Chart
+      var pieCtx = document.getElementById('pieChart').getContext('2d');
+      new Chart(pieCtx, pieChartConfig);
+      
+      // Bar Chart
+      var barCtx = document.getElementById('barChart').getContext('2d');
+      new Chart(barCtx, barChartConfig);
+      
+    } catch (error) {
+      console.error('Error initializing charts:', error);
+      var errorElements = document.querySelectorAll('.chart-error');
+      for (var i = 0; i < errorElements.length; i++) {
+        errorElements[i].style.display = 'block';
       }
-    });
+    }
   });
 </script>
+
+<style>
+  /* Chart status messages */
+  .chart-loading,
+  .chart-error,
+  .no-data-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #666;
+  }
+  
+  .text-danger {
+    color: #e74c3c;
+  }
+  
+  /* Budget table styles */
+  .budget-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .budget-table th, .budget-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .budget-table th {
+    font-weight: 600;
+    color: #2a516d;
+  }
+</style>
 @endsection

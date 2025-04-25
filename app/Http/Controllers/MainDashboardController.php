@@ -12,70 +12,83 @@ use Illuminate\Support\Facades\Auth;
 class MainDashboardController extends Controller
 {
     public function showDashboard()
-{
-    // Fetch logged-in user
-    $user = Auth::user();
-
-    // Fetch user's transactions for the current month
-    $currentMonth = now()->format('Y-m');
-    $transactions = Transaction::where('user_id', $user->id)
-        ->where('date', 'like', "$currentMonth%")
-        ->get();
-
-    // Calculate total expenses (sum of all transactions)
-    $totalExpenses = $transactions->sum('amount');
-
-    // Get user's budget (if applicable)
-    $budget = Budget::where('user_id', $user->id)
-        ->where('month', $currentMonth)
-        ->value('limit'); // Fetch the budget limit for the current month
-
-    // Calculate balance
-    $balance = $budget !== null ? $budget - $totalExpenses : null;
-
-    // Fetch all categories from the database (to map category_id to name)
-    $categories = Category::all()->keyBy('id');
-
-    // Category data (group transactions by category)
-    $categoryData = $transactions->groupBy('category_id')->map(function ($categoryTransactions, $categoryId) use ($categories) {
-        // Get category name by ID
-        $categoryName = isset($categories[$categoryId]) ? $categories[$categoryId]->name : 'Unknown';
-        $totalAmount = $categoryTransactions->sum('amount');
-        return [
-            'name' => $categoryName,
-            'total' => $totalAmount
-        ];
-    });
-
-    // Make sure that empty data does not break the view
-    $categoryData = $categoryData->isEmpty() ? [] : $categoryData;
-
-    // Return the dashboard view with the data
-    return view('pages.dashboard', [
-        'user' => $user,
-        'totalExpenses' => $totalExpenses,
-        'balance' => $balance,
-        'budget' => $budget,
-        'categoryData' => $categoryData
-    ]);
-}
-
-
-    public function setBudget(Request $request)
     {
-        $request->validate([
-            'limit' => 'required|numeric|min:0',
-        ]);
-
         $user = Auth::user();
-        $currentMonth = now()->format('Y-m');
+        $currentMonth = date('Y-m');
 
-        // Create or update the budget for the current month
-        Budget::updateOrCreate(
-            ['user_id' => $user->id, 'month' => $currentMonth],
-            ['limit' => $request->limit]
-        );
+        // Fetch transactions for the current month
+        $transactions = Transaction::where('user_id', $user->id)
+            ->where('date', 'like', $currentMonth.'%')
+            ->get();
 
-        return response()->json(['success' => true, 'message' => 'Budget has been set successfully.']);
+        // Calculate total expenses
+        $totalExpenses = $transactions->sum('amount');
+
+        // Fetch all categories (to map category_id to name)
+        $categories = Category::all()->keyBy('id');
+
+        // Get budgets for all categories (if they exist)
+        $categoryBudgets = Budget::where('user_id', $user->id)
+            ->where('month', $currentMonth)
+            ->get()
+            ->keyBy('category_id');
+
+        // Prepare category analysis (spent, budget, remaining)
+        $categoryAnalysis = array();
+        $transactionsByCategory = $transactions->groupBy('category_id');
+        
+        foreach ($transactionsByCategory as $categoryId => $categoryTransactions) {
+            $categoryName = isset($categories[$categoryId]) ? $categories[$categoryId]->name : 'Unknown';
+            $spent = $categoryTransactions->sum('amount');
+            $budget = isset($categoryBudgets[$categoryId]) ? $categoryBudgets[$categoryId]->limit : null;
+            $remaining = $budget !== null ? $budget - $spent : null;
+
+            $categoryAnalysis[] = array(
+                'id' => $categoryId,
+                'name' => $categoryName,
+                'spent' => $spent,
+                'budget' => $budget,
+                'remaining' => $remaining,
+            );
+        }
+
+        // Category breakdown (for pie chart)
+        $categoryData = array();
+        foreach ($categoryAnalysis as $category) {
+            $categoryData[] = array(
+                'name' => $category['name'],
+                'total' => $category['spent'],
+            );
+        }
+
+        return view('pages.dashboard', array(
+            'user' => $user,
+            'totalExpenses' => $totalExpenses,
+            'currentMonth' => $currentMonth,
+            'categoryAnalysis' => $categoryAnalysis,
+            'categoryData' => $categoryData,
+        ));
+    }
+
+    public function getCategorySummary()
+    {
+        $user = Auth::user();
+        $currentMonth = date('Y-m');
+        
+        $transactions = Transaction::where('user_id', $user->id)
+            ->where('date', 'like', $currentMonth.'%')
+            ->with('category')
+            ->get();
+            
+        $summary = array();
+        $groupedTransactions = $transactions->groupBy(function($item) {
+            return $item->category ? $item->category->name : 'Uncategorized';
+        });
+        
+        foreach ($groupedTransactions as $categoryName => $categoryTransactions) {
+            $summary[$categoryName] = $categoryTransactions->sum('amount');
+        }
+            
+        return response()->json($summary);
     }
 }
