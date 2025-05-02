@@ -16,9 +16,17 @@ export default defineConfig({
                 'resources/css/expenses.css',
                 'resources/css/analysis.css',
                 'resources/css/settings.css',
+                'resources/css/navigations.css',
             ],
             refresh: true,
         }),
         tailwindcss(),
     ],
+    // Add this if you get jQuery errors
+    resolve: {
+        alias: {
+            '$': 'jquery',
+            'jQuery': 'jquery',
+        }
+    }
 });

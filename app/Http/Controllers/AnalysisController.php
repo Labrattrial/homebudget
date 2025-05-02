@@ -67,39 +67,26 @@ class AnalysisController extends Controller
     }
 
     public function customDateRangeData(Request $request)
-    {
-        try {
-            $startDate = Carbon::parse($request->input('start'));
-            $endDate = Carbon::parse($request->input('end'));
-            
-            // Validate date range (max 1 year)
-            if ($startDate->diffInDays($endDate) > 365) {
-                throw new \Exception('Date range cannot exceed 1 year');
-            }
-            
-            // Get transactions for metrics calculation
-            $transactions = $this->getTransactions($startDate, $endDate);
-            $metrics = $this->calculateMetrics($transactions, $startDate, $endDate);
-            
-            // Get all necessary data
-            $trendData = $this->getTrendData($startDate, $endDate);
-            $categoryBreakdown = $this->getCategoryBreakdown($startDate, $endDate);
-            
+{
+    try {
+        $startDate = Carbon::parse($request->input('start'));
+        $endDate = Carbon::parse($request->input('end'));
+
+        // Validate date range (max 1 year)
+        if ($startDate->diffInDays($endDate) > 365) {
             return response()->json([
-                'trendDates' => array_keys($trendData),
-                'trendAmounts' => array_values($trendData),
-                'categoryNames' => collect($categoryBreakdown)->pluck('name')->toArray(),
-                'categoryAmounts' => collect($categoryBreakdown)->pluck('amount')->toArray(),
-                'totalSpending' => $metrics['totalSpending'],
-                'dailyAverage' => $metrics['dailyAverage'],
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Invalid date range',
-                'message' => $e->getMessage()
+                'error' => 'Date range cannot exceed 1 year'
             ], 400);
         }
+
+        // Fetch and process data...
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Invalid date range',
+            'message' => $e->getMessage()
+        ], 400);
     }
+}
 
     protected function getWeeklyDataForRange($startDate, $endDate)
     {
@@ -191,6 +178,8 @@ class AnalysisController extends Controller
     {
         return Transaction::whereBetween('date', [$startDate, $endDate])
             ->where('user_id', Auth::id())
+            ->select('id', 'date', 'amount', 'category_id') // Only fetch required columns
+            ->with(['category:id,name']) // Eager load the category with specific columns
             ->get();
     }
 
@@ -207,55 +196,48 @@ class AnalysisController extends Controller
     }
 
     protected function getCategoryBreakdown($startDate, $endDate)
-    {
-        $totalSpending = Transaction::whereBetween('date', [$startDate, $endDate])
-            ->where('user_id', Auth::id())
-            ->sum('amount');
-        
-        return Category::with(['transactions' => function($query) use ($startDate, $endDate) {
-                $query->whereBetween('date', [$startDate, $endDate])
-                      ->where('user_id', Auth::id());
-            }])
-            ->get()
-            ->map(function($category) use ($totalSpending) {
-                $amount = $category->transactions->sum('amount');
-                
-                return [
-                    'name' => $category->name,
-                    'amount' => $amount,
-                    'percentage' => $totalSpending > 0 ? round(($amount / $totalSpending) * 100, 1) : 0,
-                ];
-            })
-            ->sortByDesc('amount')
-            ->values()
-            ->toArray();
-    }
+{
+    $totalSpending = Transaction::whereBetween('date', [$startDate, $endDate])
+        ->where('user_id', Auth::id())
+        ->sum('amount');
+
+    return Category::join('transactions', 'categories.id', '=', 'transactions.category_id')
+        ->whereBetween('transactions.date', [$startDate, $endDate])
+        ->where('transactions.user_id', Auth::id())
+        ->selectRaw('categories.name, SUM(transactions.amount) as amount')
+        ->groupBy('categories.name')
+        ->orderByDesc('amount')
+        ->get()
+        ->map(function ($category) use ($totalSpending) {
+            return [
+                'name' => $category->name,
+                'amount' => $category->amount,
+                'percentage' => $totalSpending > 0 ? round(($category->amount / $totalSpending) * 100, 1) : 0,
+            ];
+        })
+        ->toArray();
+}
 
     protected function getTrendData($startDate, $endDate)
 {
-    $trendData = [];
-    $currentDate = clone $startDate;
-    
-    // Initialize all dates in range with 0 value
-    while ($currentDate <= $endDate) {
-        $dateString = $currentDate->format('M j, Y'); // Format: "Apr 1, 2025"
-        $trendData[$dateString] = 0;
-        $currentDate->addDay();
-    }
-    
-    // Get actual transaction data
     $transactions = Transaction::whereBetween('date', [$startDate, $endDate])
         ->where('user_id', Auth::id())
         ->selectRaw('DATE(date) as date, SUM(amount) as total')
         ->groupBy('date')
-        ->get();
-    
-    // Merge actual data with initialized dates
-    foreach ($transactions as $transaction) {
-        $dateString = Carbon::parse($transaction->date)->format('M j, Y');
-        $trendData[$dateString] = (float)$transaction->total;
+        ->orderBy('date', 'asc')
+        ->get()
+        ->pluck('total', 'date'); // Use pluck for better performance
+
+    // Fill missing dates with 0
+    $trendData = [];
+    $currentDate = clone $startDate;
+
+    while ($currentDate <= $endDate) {
+        $dateString = $currentDate->format('M j, Y');
+        $trendData[$dateString] = $transactions[$currentDate->format('Y-m-d')] ?? 0;
+        $currentDate->addDay();
     }
-    
+
     return $trendData;
 }
 

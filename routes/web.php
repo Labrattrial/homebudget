@@ -1,44 +1,53 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\MainDashboardController;
-use App\Http\Controllers\LoginController;
-use App\Http\Controllers\RegisterController;
-use App\Http\Controllers\UserExpensesController;
-use App\Http\Controllers\AnalysisController;
-use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\{
+    MainDashboardController,
+    LoginController,
+    RegisterController,
+    UserExpensesController,
+    AnalysisController,
+    SettingsController,
+    BudgetController,
 
-// Home Route (redirect to login)
+};
+use Illuminate\Support\Facades\Auth;
+
 Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Login Routes
+// Authentication Routes
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
-
-// Signup Routes
 Route::get('/signup', [RegisterController::class, 'showSignupForm'])->name('signup');
 Route::post('/signup', [RegisterController::class, 'register']);
-
-// Logout Route
 Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
 
-// Protected Routes (user must be authenticated)
+// Authenticated Routes
 Route::middleware('auth')->group(function () {
-    // Dashboard + Sidebar Pages
+    // Dashboard
     Route::get('/dashboard', [MainDashboardController::class, 'showDashboard'])->name('user.dashboard');
-    Route::get('/dashboard/category-summary', array('as' => 'dashboard.category-summary', 'uses' => 'MainDashboardController@getCategorySummary'));  
+    Route::post('/dismiss-budget-warning', function() {
+        session()->forget('budget_warning');
+        return response()->json(['success' => true]);
+    });
+    Route::get('/dashboard/category-summary', [MainDashboardController::class, 'getCategorySummary'])->name('dashboard.category-summary');
 
-    // Expenses Routes
-    Route::get('/expenses', [UserExpensesController::class, 'index'])->name('user.expenses'); // Display expenses
-    Route::post('/expenses', [UserExpensesController::class, 'store'])->name('user.expenses.store'); // Store new expense
-    Route::put('/expenses/{id}', [UserExpensesController::class, 'update']); // Update an expense
-    Route::delete('/expenses/{id}', [UserExpensesController::class, 'destroy']); // Delete an expense
+    // Expenses
+    Route::prefix('expenses')->group(function () {
+        Route::get('/', [UserExpensesController::class, 'index'])->name('user.expenses');
+        Route::post('/', [UserExpensesController::class, 'store'])->name('user.expenses.store');
+        Route::put('/{id}', [UserExpensesController::class, 'update']);
+        Route::delete('/{id}', [UserExpensesController::class, 'destroy']);
+    });
 
-    Route::post('/save-budgets', [MainDashboardController::class, 'saveBudgets'])->name('saveBudgets');
-    
-    
+    // Budget
+    Route::post('/budget', [AnalysisController::class, 'saveBudget'])->name('saveBudget');
+    Route::post('/budgets', [BudgetController::class, 'store'])->name('budgets.store');
+    Route::post('/budgets/clear', [BudgetController::class, 'clear'])->name('budgets.clear');
+
+
     // Analysis Routes
     Route::get('/analysis', [AnalysisController::class, 'index'])->name('user.analysis');
     Route::get('/analysis/data/custom', [AnalysisController::class, 'customDateRangeData'])->name('analysis.customData');
@@ -46,14 +55,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/analysis/data/weekly', [AnalysisController::class, 'getWeeklyData']);
     Route::get('/analysis/data/monthly', [AnalysisController::class, 'getMonthlyData']);
 
-    // Settings Routes Group
-    Route::get('/settings', function () {
-        return view('pages.settings'); // this points to resources/views/pages/settings.blade.php
-    })->name('user.settings');
+    // Settings
+    Route::prefix('settings')->group(function () {
+        Route::get('/', function () {
+            return view('pages.settings');
+        })->name('user.settings');
+        Route::post('/settings/profile/update', [SettingsController::class, 'updateProfile'])->name('settings.profile.update');
+        Route::post('/password', [SettingsController::class, 'updatePassword'])->name('settings.password.update');
+    });
 
-    Route::post('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.profile.update');
-    Route::post('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.password.update');
+    Route::post('/save-budgets', [MainDashboardController::class, 'saveBudgets'])->name('saveBudgets');
 });
-    
-
-

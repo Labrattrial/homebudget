@@ -14,11 +14,11 @@ class MainDashboardController extends Controller
     public function showDashboard()
     {
         $user = Auth::user();
-        $currentMonth = date('Y-m');
+        $currentMonth = now()->format('Y-m');
 
         // Fetch transactions for the current month
         $transactions = Transaction::where('user_id', $user->id)
-            ->where('date', 'like', $currentMonth.'%')
+            ->where('date', 'like', "$currentMonth%")
             ->get();
 
         // Calculate total expenses
@@ -34,61 +34,66 @@ class MainDashboardController extends Controller
             ->keyBy('category_id');
 
         // Prepare category analysis (spent, budget, remaining)
-        $categoryAnalysis = array();
-        $transactionsByCategory = $transactions->groupBy('category_id');
-        
-        foreach ($transactionsByCategory as $categoryId => $categoryTransactions) {
-            $categoryName = isset($categories[$categoryId]) ? $categories[$categoryId]->name : 'Unknown';
+        $categoryAnalysis = $transactions->groupBy('category_id')->map(function ($categoryTransactions, $categoryId) use ($categories, $categoryBudgets) {
+            $categoryName = $categories[$categoryId]->name ?? 'Unknown';
             $spent = $categoryTransactions->sum('amount');
-            $budget = isset($categoryBudgets[$categoryId]) ? $categoryBudgets[$categoryId]->limit : null;
+            $budget = $categoryBudgets[$categoryId]->limit ?? null;
             $remaining = $budget !== null ? $budget - $spent : null;
 
-            $categoryAnalysis[] = array(
+            return [
                 'id' => $categoryId,
                 'name' => $categoryName,
                 'spent' => $spent,
                 'budget' => $budget,
                 'remaining' => $remaining,
-            );
-        }
+            ];
+        });
 
         // Category breakdown (for pie chart)
-        $categoryData = array();
-        foreach ($categoryAnalysis as $category) {
-            $categoryData[] = array(
+        $categoryData = $categoryAnalysis->map(function ($category) {
+            return [
                 'name' => $category['name'],
                 'total' => $category['spent'],
-            );
-        }
+            ];
+        });
 
-        return view('pages.dashboard', array(
+        return view('pages.dashboard', [
             'user' => $user,
             'totalExpenses' => $totalExpenses,
             'currentMonth' => $currentMonth,
             'categoryAnalysis' => $categoryAnalysis,
             'categoryData' => $categoryData,
-        ));
+        ]);
     }
 
-    public function getCategorySummary()
+    public function saveBudgets(Request $request)
     {
+        $request->validate([
+            'month' => 'required|string',
+            'budgets' => 'required|array',
+            'budgets.*.category_id' => 'required|exists:categories,id',
+            'budgets.*.limit' => 'required|numeric|min:0',
+        ]);
+
         $user = Auth::user();
-        $currentMonth = date('Y-m');
-        
-        $transactions = Transaction::where('user_id', $user->id)
-            ->where('date', 'like', $currentMonth.'%')
-            ->with('category')
-            ->get();
-            
-        $summary = array();
-        $groupedTransactions = $transactions->groupBy(function($item) {
-            return $item->category ? $item->category->name : 'Uncategorized';
-        });
-        
-        foreach ($groupedTransactions as $categoryName => $categoryTransactions) {
-            $summary[$categoryName] = $categoryTransactions->sum('amount');
+
+        // Save each category budget
+        foreach ($request->budgets as $budgetData) {
+            Budget::updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'month' => $request->month,
+                    'category_id' => $budgetData['category_id'],
+                ],
+                [
+                    'limit' => $budgetData['limit'],
+                ]
+            );
         }
-            
-        return response()->json($summary);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Budgets saved successfully!',
+        ]);
     }
 }

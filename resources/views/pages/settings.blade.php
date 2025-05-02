@@ -33,15 +33,23 @@
         {{-- Profile Picture Form --}}
         <form action="{{ route('settings.profile.update') }}" method="POST" enctype="multipart/form-data" id="profileForm">
             @csrf
+            <!-- Update the profile picture section in your blade file -->
             <div class="profile-picture-container">
                 <label for="profile_picture" class="profile-picture-label">
-                    @if(Auth::user()->profile_picture)
-                        <img src="{{ Auth::user()->profile_picture }}" 
-                             alt="Profile Picture" 
-                             class="profile-picture">
-                    @else
-                        <i class="fas fa-user-circle profile-picture-icon"></i>
-                    @endif
+                    <div class="profile-picture-wrapper">
+                        @if(Auth::user()->profile_picture)
+                            <img src="{{ Auth::user()->profile_picture }}" 
+                                alt="Profile Picture" 
+                                class="profile-picture"
+                                id="currentProfilePicture">
+                        @else
+                            <i class="fas fa-user-circle profile-picture-icon" id="profileIcon"></i>
+                        @endif
+                        <div class="profile-picture-preview" id="profilePicturePreview" style="display: none;"></div>
+                        <div class="profile-picture-loading" id="profilePictureLoading" style="display: none;">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                    </div>
                     <p class="profile-picture-text">Tap to change profile picture</p>
                 </label>
                 <input type="file" name="profile_picture" id="profile_picture" style="display: none;" accept="image/*">
@@ -348,5 +356,44 @@ document.addEventListener('DOMContentLoaded', function() {
         showToast(serverMessages.error, 'error');
     }
 });
+
+function handleProfilePicturePreview() {
+    const profileInput = document.getElementById('profile_picture');
+    const previewContainer = document.getElementById('profilePicturePreview');
+    const currentPicture = document.getElementById('currentProfilePicture');
+    const profileIcon = document.getElementById('profileIcon');
+    const loadingIndicator = document.getElementById('profilePictureLoading');
+
+    profileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Show loading while processing the image
+        loadingIndicator.style.display = 'block';
+        
+        // Hide current elements
+        if (currentPicture) currentPicture.style.display = 'none';
+        if (profileIcon) profileIcon.style.display = 'none';
+        previewContainer.style.display = 'none';
+
+        // Check if the file is an image
+        if (!file.type.match('image.*')) {
+            showToast('Please select a valid image file', 'error');
+            loadingIndicator.style.display = 'none';
+            if (currentPicture) currentPicture.style.display = 'block';
+            if (profileIcon) profileIcon.style.display = 'block';
+            return;
+        }
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewContainer.innerHTML = `<img src="${e.target.result}" alt="Preview" class="profile-picture">`;
+            previewContainer.style.display = 'block';
+            loadingIndicator.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    });
+}
 </script>
 @endsection

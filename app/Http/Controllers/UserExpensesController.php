@@ -9,51 +9,122 @@ use Illuminate\Support\Facades\Auth;
 
 class UserExpensesController extends Controller
 {
-    // Display all categories and transactions
+    /**
+     * Display all expenses for the authenticated user
+     */
     public function index()
     {
-        // Fetch categories and transactions for the authenticated user
         $categories = Category::all();
         $expenses = Transaction::where('user_id', Auth::id())
-            ->with('category') // Eager load category relationship
+            ->with('category')
             ->orderBy('date', 'desc')
             ->get();
 
-        // Calculate category-wise expense summary
-        $categorySummary = $this->calculateCategorySummary($expenses);
+        // Fetch distinct specs (stored in the 'description' column)
+        $specs = Transaction::distinct('description')
+            ->whereNotNull('description')
+            ->pluck('description');
 
-        return view('pages.expenses', compact('categories', 'expenses', 'categorySummary'));
+        return view('pages.expenses', compact('categories', 'expenses', 'specs'));
     }
 
-    // Store a new transaction (expense)
+    /**
+     * Fetch descriptions for a specific category
+     */
+    public function getDescriptionsByCategory($categoryId)
+    {
+        $specs = Transaction::where('category_id', $categoryId)
+            ->distinct('description')
+            ->whereNotNull('description')
+            ->pluck('description');
+
+        return response()->json(['specs' => $specs]);
+    }
+
+    /**
+     * Store a new expense
+     */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'category_id' => 'required|exists:categories,id',
-            'amount' => 'required|numeric|min:0',
+            'amount' => 'required|numeric|min:0.01',
             'date' => 'required|date',
+            'specs_option' => 'required|in:existing,new',
+            'description' => 'required_if:specs_option,existing|max:255',
+            'new_specs' => 'required_if:specs_option,new|max:255',
         ]);
+
+        // Determine the specs (existing or new)
+        $description = $validated['specs_option'] === 'new'
+            ? $validated['new_specs']
+            : $validated['description'];
 
         $expense = Transaction::create([
             'user_id' => Auth::id(),
-            'category_id' => $request->category_id,
-            'amount' => $request->amount,
-            'date' => $request->date,
+            'category_id' => $validated['category_id'],
+            'amount' => $validated['amount'],
+            'date' => $validated['date'],
+            'description' => $description, // Save the specs in 'description'
         ]);
-
-        // Get updated expenses to calculate new summary
-        $expenses = Transaction::where('user_id', Auth::id())->get();
-        $categorySummary = $this->calculateCategorySummary($expenses);
 
         return response()->json([
             'success' => true,
-            'data' => $expense->load('category'), // Load category relationship
-            'categorySummary' => $categorySummary,
+            'data' => $expense->load('category'),
         ]);
     }
 
-    // Edit an existing transaction (expense)
-    public function edit($id)
+    /**
+     * Update an existing expense
+     */
+    public function update(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'category_id' => 'required|exists:categories,id',
+            'amount' => 'required|numeric|min:0.01',
+            'date' => 'required|date',
+            'specs_option' => 'required|in:existing,new',
+            'description' => 'required_if:specs_option,existing|max:255',
+            'new_specs' => 'required_if:specs_option,new|max:255',
+        ]);
+
+        // Determine the specs (existing or new)
+        $description = $validated['specs_option'] === 'new'
+            ? $validated['new_specs']
+            : $validated['description'];
+
+        $transaction = $this->getUserTransaction($id);
+        $transaction->update([
+            'category_id' => $validated['category_id'],
+            'amount' => $validated['amount'],
+            'date' => $validated['date'],
+            'description' => $description,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $transaction->load('category'),
+        ]);
+    }
+
+    /**
+     * Delete an expense
+     */
+    public function destroy($id)
+    {
+        $transaction = $this->getUserTransaction($id);
+        $transaction->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Expense deleted successfully.',
+        ]);
+    }
+
+    /**
+     * Helper method to get a user's transaction with authorization check
+     */
+    private function getUserTransaction($id)
     {
         $transaction = Transaction::with('category')->findOrFail($id);
 
@@ -61,69 +132,6 @@ class UserExpensesController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        return response()->json($transaction);
-    }
-
-    // Update an existing transaction
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'amount' => 'required|numeric',
-            'category_id' => 'required|exists:categories,id',
-            'date' => 'required|date',
-        ]);
-
-        $transaction = Transaction::findOrFail($id);
-
-        if ($transaction->user_id !== Auth::id()) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        $transaction->update([
-            'amount' => $request->amount,
-            'category_id' => $request->category_id,
-            'date' => $request->date,
-        ]);
-
-        // Get updated expenses to calculate new summary
-        $expenses = Transaction::where('user_id', Auth::id())->get();
-        $categorySummary = $this->calculateCategorySummary($expenses);
-
-        return response()->json([
-            'success' => true,
-            'data' => $transaction->load('category'),
-            'categorySummary' => $categorySummary,
-        ]);
-    }
-
-    // Delete a transaction
-    public function destroy($id)
-    {
-        $transaction = Transaction::findOrFail($id);
-
-        if ($transaction->user_id !== Auth::id()) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        $transaction->delete();
-
-        // Get updated expenses to calculate new summary
-        $expenses = Transaction::where('user_id', Auth::id())->get();
-        $categorySummary = $this->calculateCategorySummary($expenses);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Expense deleted successfully.',
-            'categorySummary' => $categorySummary,
-        ]);
-    }
-
-    // Helper method to calculate category summary
-    private function calculateCategorySummary($expenses)
-    {
-        return $expenses->groupBy('category_id')->mapWithKeys(function ($transactions, $categoryId) {
-            $categoryName = Category::find($categoryId)->name ?? 'Unknown';
-            return [$categoryName => $transactions->sum('amount')];
-        });
+        return $transaction;
     }
 }
