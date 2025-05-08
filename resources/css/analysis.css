@@ -271,19 +271,20 @@
 
 /* Individual Chart Container */
 .chart-container {
-    background: #ffffff;
-    border-radius: var(--border-radius-lg, 12px);
+    background: white;
+    border-radius: var(--border-radius);
     padding: 1.5rem;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
-    height: 560px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    transition: var(--transition);
+    height: 400px;
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
-    transition: box-shadow 0.2s ease;
 }
 
 .chart-container:hover {
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
 }
 
 /* Chart Title */
@@ -305,7 +306,8 @@
 .chart-loading-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(4px);
     display: none;
     justify-content: center;
     align-items: center;
@@ -320,12 +322,11 @@
     display: flex;
 }
 
-
 /* Loading Spinner */
 .chart-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid rgba(67, 97, 238, 0.2);
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(67, 97, 238, 0.2);
     border-radius: 50%;
     border-top-color: var(--primary);
     animation: spin 1s linear infinite;
@@ -337,7 +338,6 @@
         grid-template-columns: 1fr; /* Stack charts on smaller screens */
     }
 }
-
 
 /* Detailed Breakdown */
 .detailed-breakdown {
@@ -390,12 +390,18 @@ canvas {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { 
+        opacity: 0; 
+        transform: translateY(20px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
 }
 
 .chart-container, .summary-card, .detailed-breakdown {
-    animation: fadeIn 0.6s ease-out forwards;
+    animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* Disabled Button State */
@@ -771,6 +777,7 @@ input:checked + .slider:before {
     padding: 15px;
     margin-bottom: 20px;
     border-radius: 4px;
+    animation: slideIn 0.3s ease-out;
 }
 
 .error-content {
@@ -795,6 +802,12 @@ input:checked + .slider:before {
     color: #856404;
 }
 
+.error-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
 .retry-btn {
     background: #ffc107;
     border-color: #ffc107;
@@ -814,4 +827,93 @@ button:focus, input:focus, .range-preset:focus {
 
 .preference-label {
     color: #343a40;
+}
+
+/* Chart Actions */
+.chart-actions {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 5;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chart-actions .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    background: white;
+    border: 1px solid #e2e8f0;
+    color: var(--dark);
+    transition: all 0.2s ease;
+}
+
+.chart-actions .btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+/* Improved Tooltips */
+.chart-tooltip {
+    background: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(4px);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive Improvements */
+@media (max-width: 768px) {
+    .chart-actions {
+        position: static;
+        margin-top: 1rem;
+        justify-content: flex-end;
+    }
+    
+    .chart-container {
+        padding: 1rem;
+        height: 300px;
+    }
+    
+    .chart-tabs {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .chart-tabs .btn {
+        flex: 1;
+        min-width: 100px;
+    }
+}
+
+/* Accessibility Improvements */
+.chart-container:focus-within {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Print Styles */
+@media print {
+    .chart-actions,
+    .chart-tabs,
+    .date-range-selector {
+        display: none !important;
+    }
+    
+    .chart-container {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    
+    canvas {
+        max-width: 100% !important;
+        height: auto !important;
+    }
 }

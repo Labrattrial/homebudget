@@ -12,10 +12,13 @@ class UserExpensesController extends Controller
     /**
      * Display all expenses for the authenticated user
      */
-    public function index()
+    public function index(Request $request)
     {
         $categories = Category::all();
+        $month = $request->get('month', now()->format('Y-m'));
+        
         $expenses = Transaction::where('user_id', Auth::id())
+            ->where('date', 'like', "$month%")
             ->with('category')
             ->orderBy('date', 'desc')
             ->get();
@@ -24,6 +27,21 @@ class UserExpensesController extends Controller
         $specs = Transaction::distinct('description')
             ->whereNotNull('description')
             ->pluck('description');
+
+        if ($request->wantsJson()) {
+            $categoryBreakdown = $categories->map(function($category) use ($expenses) {
+                return [
+                    'name' => $category->name,
+                    'total' => $expenses->where('category_id', $category->id)->sum('amount')
+                ];
+            });
+
+            return response()->json([
+                'expenses' => $expenses,
+                'totalExpenses' => $expenses->sum('amount'),
+                'categoryBreakdown' => $categoryBreakdown
+            ]);
+        }
 
         return view('pages.expenses', compact('categories', 'expenses', 'specs'));
     }
@@ -115,9 +133,25 @@ class UserExpensesController extends Controller
         $transaction = $this->getUserTransaction($id);
         $transaction->delete();
 
+        // Get updated totals
+        $month = now()->format('Y-m');
+        $expenses = Transaction::where('user_id', Auth::id())
+            ->where('date', 'like', "$month%")
+            ->get();
+
+        $categories = Category::all();
+        $categoryBreakdown = $categories->map(function($category) use ($expenses) {
+            return [
+                'name' => $category->name,
+                'total' => $expenses->where('category_id', $category->id)->sum('amount')
+            ];
+        });
+
         return response()->json([
             'success' => true,
             'message' => 'Expense deleted successfully.',
+            'totalExpenses' => $expenses->sum('amount'),
+            'categoryBreakdown' => $categoryBreakdown
         ]);
     }
 

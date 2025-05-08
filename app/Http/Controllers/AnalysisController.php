@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Budget;
+use Illuminate\Support\Facades\Cache;
 
 class AnalysisController extends Controller
 {
@@ -74,28 +75,34 @@ class AnalysisController extends Controller
         try {
             $startDate = Carbon::parse($request->input('start'));
             $endDate = Carbon::parse($request->input('end'));
+            $viewType = $request->input('view', 'monthly');
 
             // Validate date range (max 1 year)
             if ($startDate->diffInDays($endDate) > 365) {
                 return response()->json(['error' => 'Date range cannot exceed 1 year'], 400);
             }
 
-            // Fetch and process data...
-            $transactions = $this->getTransactions($startDate, $endDate);
-            $metrics = $this->calculateMetrics($transactions, $startDate, $endDate);
-            $categoryBreakdown = $this->getCategoryBreakdown($startDate, $endDate);
-            $trendData = $this->getTrendData($startDate, $endDate);
+            // Create cache key based on parameters
+            $cacheKey = "analysis_data_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}_{$viewType}_" . Auth::id();
 
-            return response()->json([
-                'totalSpending' => $metrics['totalSpending'],
-                'dailyAverage' => $metrics['dailyAverage'],
-                'categoryNames' => collect($categoryBreakdown)->pluck('name')->toArray(),
-                'categoryAmounts' => collect($categoryBreakdown)->pluck('amount')->toArray(),
-                'trendDates' => array_keys($trendData),
-                'trendAmounts' => array_values($trendData),
-            ]);
+            // Return cached data if available
+            return response()->json(Cache::remember($cacheKey, now()->addMinutes(15), function () use ($startDate, $endDate, $viewType) {
+                $transactions = $this->getTransactions($startDate, $endDate);
+                $metrics = $this->calculateMetrics($transactions, $startDate, $endDate);
+                $categoryBreakdown = $this->getCategoryBreakdown($startDate, $endDate);
+                $trendData = $this->getTrendData($startDate, $endDate);
+
+                return [
+                    'totalSpending' => $metrics['totalSpending'],
+                    'dailyAverage' => $metrics['dailyAverage'],
+                    'categoryNames' => collect($categoryBreakdown)->pluck('name')->toArray(),
+                    'categoryAmounts' => collect($categoryBreakdown)->pluck('amount')->toArray(),
+                    'trendDates' => array_keys($trendData),
+                    'trendAmounts' => array_values($trendData),
+                ];
+            }));
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Invalid date range', 'message' => $e->getMessage()], 400);
+            return response()->json(['error' => 'Failed to load data', 'message' => $e->getMessage()], 500);
         }
     }
 

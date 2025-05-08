@@ -4,11 +4,43 @@
 @vite(['resources/css/expenses.css', 'resources/js/fontawesome.js'])
 
 <div class="expenses-wrapper">
+  <!-- Summary Section -->
+  <div class="expenses-summary">
+    <div class="summary-card total-expenses">
+      <h3>Total Expenses</h3>
+      <p class="amount">₱{{ number_format($expenses->sum('amount'), 2) }}</p>
+      <p class="period">This Month</p>
+    </div>
+    <div class="summary-card category-breakdown">
+      <h3>Category Breakdown</h3>
+      <div class="category-list">
+        @foreach($categories as $category)
+          @php
+            $categoryTotal = $expenses->where('category_id', $category->id)->sum('amount');
+            $percentage = $expenses->sum('amount') > 0 ? 
+              ($categoryTotal / $expenses->sum('amount')) * 100 : 0;
+          @endphp
+          <div class="category-item">
+            <span class="category-name">{{ $category->name }}</span>
+            <div class="category-bar">
+              <div class="bar-fill" style="width: {{ $percentage }}%"></div>
+            </div>
+            <span class="category-amount">₱{{ number_format($categoryTotal, 2) }}</span>
+          </div>
+        @endforeach
+      </div>
+    </div>
+  </div>
+
   <!-- Header with title, filter, search bar, and add button -->
   <div class="expenses-header">
     <h2>Recent Expenses</h2>
     <div class="header-actions">
-      <input type="text" id="searchInput" placeholder="Search by description or category" oninput="searchExpenses()" />
+      <input type="month" id="monthFilter" value="{{ now()->format('Y-m') }}" onchange="filterByMonth(this.value)" />
+      <div class="search-container">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="Search by description or category" oninput="searchExpenses()" />
+      </div>
       <select id="categoryFilter" onchange="filterExpenses(this.value)">
         <option value="">All Categories</option>
         @foreach($categories as $category)
@@ -39,60 +71,82 @@
   <div id="expenseModal" class="modal" role="dialog" aria-hidden="true">
     <div class="modal-content">
       <button class="close" onclick="closeModal()" aria-label="Close">&times;</button>
-      <h2 id="modalTitle">Add New Expense</h2>
-      <form id="expenseForm">
+      <h2 id="modalTitle">
+        <i class="fas fa-plus-circle"></i>
+        <span>Add New Expense</span>
+      </h2>
+      <div class="modal-loading">
+        <div class="spinner"></div>
+      </div>
+      <form id="expenseForm" novalidate>
         @csrf
-        <label for="modalCategory">Category:</label>
-        <div class="custom-select">
-          <select id="modalCategory" name="category_id" required onchange="fetchSpecsByCategory(this.value)">
-            <option value="" disabled selected>Select a category</option>
-            @foreach($categories as $category)
-              <option value="{{ $category->id }}">{{ $category->name }}</option>
-            @endforeach
-          </select>
-        </div>
-        <div class="error-message" id="error-category_id"></div>
-
-        <label>Specs:</label>
-        <div class="specs-options">
-          <input type="radio" id="existingSpecs" name="specs_option" value="existing" checked onclick="toggleSpecsInput('existing')" />
-          <label for="existingSpecs">Select Existing</label>
-          
-          <input type="radio" id="newSpecs" name="specs_option" value="new" onclick="toggleSpecsInput('new')" />
-          <label for="newSpecs">Add New</label>
-        </div>
-
-        <div id="existingSpecsContainer">
+        <div class="form-group">
+          <label for="modalCategory">Category:</label>
           <div class="custom-select">
-            <select id="modalSpecs" name="description">
-              <option value="" disabled selected>Select Specifics</option>
-              @foreach($specs as $spec)
-                <option value="{{ $spec }}">{{ $spec }}</option>
+            <select id="modalCategory" name="category_id" required onchange="validateField(this)">
+              <option value="" disabled selected>Select a category</option>
+              @foreach($categories as $category)
+                <option value="{{ $category->id }}">{{ $category->name }}</option>
               @endforeach
             </select>
           </div>
-          <div class="error-message" id="error-description"></div>
+          <div class="error-message" id="error-category_id"></div>
         </div>
 
-        <div id="newSpecsContainer" style="display: none;">
-          <input type="text" id="newSpecsInput" name="new_specs" placeholder="Enter new specs" />
-          <div class="error-message" id="error-new_specs"></div>
+        <div class="form-group">
+          <label>Specs:</label>
+          <div class="specs-options">
+            <input type="radio" id="existingSpecs" name="specs_option" value="existing" checked onclick="toggleSpecsInput('existing')" />
+            <label for="existingSpecs">Select Existing</label>
+            
+            <input type="radio" id="newSpecs" name="specs_option" value="new" onclick="toggleSpecsInput('new')" />
+            <label for="newSpecs">Add New</label>
+          </div>
+
+          <div id="existingSpecsContainer" class="form-group">
+            <div class="custom-select">
+              <select id="modalSpecs" name="description" required onchange="validateField(this)">
+                <option value="" disabled selected>Select Specifics</option>
+                @foreach($specs as $spec)
+                  <option value="{{ $spec }}">{{ $spec }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="error-message" id="error-description"></div>
+          </div>
+
+          <div id="newSpecsContainer" class="form-group" style="display: none;">
+            <input type="text" id="newSpecsInput" name="new_specs" placeholder="Enter new specs" required onchange="validateField(this)" />
+            <div class="error-message" id="error-new_specs"></div>
+          </div>
         </div>
 
-        <label for="modalAmount">Total Expense:</label>
-        <input type="number" name="amount" id="modalAmount" required placeholder="Enter amount" />
-        <div class="error-message" id="error-amount"></div>
+        <div class="form-group">
+          <label for="modalAmount">Total Expense:</label>
+          <input type="number" name="amount" id="modalAmount" required placeholder="Enter amount" step="0.01" min="0.01" onchange="validateField(this)" />
+          <div class="error-message" id="error-amount"></div>
+        </div>
 
-        <label for="modalDate">Date:</label>
-        <input type="date" name="date" id="modalDate" required />
-        <div class="error-message" id="error-date"></div>
+        <div class="form-group">
+          <label for="modalDate">Date:</label>
+          <input type="date" name="date" id="modalDate" required onchange="validateField(this)" />
+          <div class="error-message" id="error-date"></div>
+        </div>
 
         <button type="submit" class="save-btn" id="submitButton">
           <span id="buttonText">Save</span>
-          <span id="loadingSpinner" class="spinner" style="display: none;"></span>
+          <div class="spinner" style="display: none;"></div>
         </button>
       </form>
     </div>
+  </div>
+
+  <!-- Custom Confirmation Message -->
+  <div id="customConfirmation" class="custom-confirmation">
+    <div class="icon">
+      <i class="fas fa-check"></i>
+    </div>
+    <div class="message"></div>
   </div>
 </div>
 
@@ -112,24 +166,60 @@
     if (loadingOverlay) loadingOverlay.remove();
   }
 
-  function fetchSpecsByCategory(categoryId) {
-    fetch(`/categories/${categoryId}/descriptions`, {
-      headers: { 'Accept': 'application/json' },
-    })
-    .then(response => response.json())
-    .then(data => {
+  function showCustomConfirmation(message, success = true) {
+    const confirmation = document.getElementById('customConfirmation');
+    const icon = confirmation.querySelector('.icon i');
+    const messageEl = confirmation.querySelector('.message');
+    
+    // Update content
+    messageEl.textContent = message;
+    icon.className = success ? 'fas fa-check' : 'fas fa-times';
+    
+    // Update classes
+    confirmation.className = 'custom-confirmation ' + (success ? 'success' : 'error');
+    
+    // Show confirmation
+    confirmation.classList.add('show');
+    
+    // Hide after 3 seconds
+    setTimeout(() => {
+      confirmation.classList.remove('show');
+    }, 3000);
+  }
+
+  function showModalLoading(show) {
+    const loadingEl = document.querySelector('.modal-loading');
+    if (show) {
+      loadingEl.classList.add('show');
+    } else {
+      loadingEl.classList.remove('show');
+    }
+  }
+
+  async function fetchSpecsByCategory(categoryId) {
+    showModalLoading(true);
+    try {
+      const response = await fetch(`/categories/${categoryId}/descriptions`, {
+        headers: { 'Accept': 'application/json' },
+      });
+      const data = await response.json();
+      
       const specsDropdown = document.getElementById('modalSpecs');
       specsDropdown.innerHTML = '<option value="" disabled selected>Select specs</option>';
       data.specs.forEach(spec => {
         specsDropdown.insertAdjacentHTML('beforeend', `<option value="${spec}">${spec}</option>`);
       });
-    })
-    .catch(error => console.error('Error fetching specs:', error));
+    } catch (error) {
+      console.error('Error fetching specs:', error);
+      showCustomConfirmation('Error loading specs', false);
+    } finally {
+      showModalLoading(false);
+    }
   }
 
   function toggleLoading(state, button = null) {
     const buttonText = document.getElementById('buttonText');
-    const loadingSpinner = document.getElementById('loadingSpinner');
+    const loadingSpinner = document.querySelector('.spinner');
 
     isLoading = state;
 
@@ -142,21 +232,6 @@
       if (buttonText) buttonText.style.display = 'inline-block';
       if (loadingSpinner) loadingSpinner.style.display = 'none';
     }
-  }
-
-  function showConfirmationMessage(message, success = true) {
-    const confirmation = document.createElement('div');
-    confirmation.classList.add('confirmation-message');
-    confirmation.textContent = message;
-
-    if (success) {
-      confirmation.classList.add('success');
-    } else {
-      confirmation.classList.add('error');
-    }
-
-    document.body.appendChild(confirmation);
-    setTimeout(() => confirmation.remove(), 3000);
   }
 
   function openModal() {
@@ -189,48 +264,120 @@
     }
   }
 
-  document.getElementById("expenseForm").onsubmit = function(event) {
+  function validateField(field) {
+    const formGroup = field.closest('.form-group');
+    const errorElement = formGroup.querySelector('.error-message');
+    
+    // Remove existing validation classes
+    formGroup.classList.remove('error', 'success');
+    errorElement.textContent = '';
+
+    // Validate required fields
+    if (field.required && !field.value) {
+      formGroup.classList.add('error');
+      errorElement.textContent = 'This field is required';
+      return false;
+    }
+
+    // Validate amount
+    if (field.id === 'modalAmount') {
+      const amount = parseFloat(field.value);
+      if (isNaN(amount) || amount <= 0) {
+        formGroup.classList.add('error');
+        errorElement.textContent = 'Please enter a valid amount greater than 0';
+        return false;
+      }
+    }
+
+    // Validate date
+    if (field.type === 'date') {
+      const selectedDate = new Date(field.value);
+      const today = new Date();
+      if (selectedDate > today) {
+        formGroup.classList.add('error');
+        errorElement.textContent = 'Date cannot be in the future';
+        return false;
+      }
+    }
+
+    // If validation passes
+    formGroup.classList.add('success');
+    return true;
+  }
+
+  function validateForm() {
+    const form = document.getElementById('expenseForm');
+    const fields = form.querySelectorAll('input[required], select[required]');
+    let isValid = true;
+
+    fields.forEach(field => {
+      if (!validateField(field)) {
+        isValid = false;
+      }
+    });
+
+    return isValid;
+  }
+
+  document.getElementById("expenseForm").onsubmit = async function(event) {
     event.preventDefault();
     if (isLoading) return;
 
-    showPageLoading(); // Show loading overlay
-
-    const formData = new FormData(document.getElementById("expenseForm"));
-    if (editingId) {
-      formData.append('_method', 'PUT');
+    if (!validateForm()) {
+      showCustomConfirmation('Please check the form for errors', false);
+      return;
     }
 
-    const url = editingId ? `/expenses/${editingId}` : "{{ route('user.expenses.store') }}";
-   
+    const submitButton = document.getElementById('submitButton');
+    const buttonText = document.getElementById('buttonText');
+    const spinner = submitButton.querySelector('.spinner');
+    
+    // Show loading state
+    isLoading = true;
+    submitButton.disabled = true;
+    buttonText.style.display = 'none';
+    spinner.style.display = 'block';
+    showModalLoading(true);
 
-    toggleLoading(true);
-    fetch(url, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-        'Accept': 'application/json',
-      },
-    })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showConfirmationMessage('Expense saved successfully!', true);
-          closeModal();
-          const newExpenseCard = createExpenseCard(data.expense);
-          document.getElementById('recentExpensesGrid').prepend(newExpenseCard);
-        } else {
-          showValidationErrors(data.errors);
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showConfirmationMessage('An error occurred while saving the expense.', false);
-      })
-      .finally(() => {
-        toggleLoading(false);
-        hidePageLoading(); // Hide loading overlay
+    try {
+      const formData = new FormData(this);
+      if (editingId) {
+        formData.append('_method', 'PUT');
+      }
+
+      const url = editingId ? `/expenses/${editingId}` : "{{ route('user.expenses.store') }}";
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          'Accept': 'application/json',
+        },
       });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        showCustomConfirmation('Expense saved successfully!', true);
+        closeModal();
+        const newExpenseCard = createExpenseCard(data.expense);
+        document.getElementById('recentExpensesGrid').prepend(newExpenseCard);
+        updateSummaryAfterDelete(data.totalExpenses, data.categoryBreakdown);
+      } else {
+        showValidationErrors(data.errors);
+        showCustomConfirmation('Please check the form for errors', false);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showCustomConfirmation('An error occurred while saving the expense', false);
+    } finally {
+      // Reset loading state
+      isLoading = false;
+      submitButton.disabled = false;
+      buttonText.style.display = 'block';
+      spinner.style.display = 'none';
+      showModalLoading(false);
+    }
   };
 
   function createExpenseCard(expense) {
@@ -285,6 +432,45 @@
     });
   }
 
+  function editCard(button) {
+    if (isLoading) return;
+    
+    const id = button.getAttribute('data-id');
+    const card = button.closest('.expense-card');
+    const category = card.querySelector('.category').textContent;
+    const specs = card.querySelector('.specs').textContent;
+    const amount = card.querySelector('.amount').textContent.replace('₱', '').replace(/,/g, '');
+    const date = card.querySelector('.date').textContent;
+
+    editingId = id;
+    document.getElementById("modalTitle").innerText = "Edit Expense";
+    
+    // Set form values
+    const categorySelect = document.getElementById("modalCategory");
+    const specsSelect = document.getElementById("modalSpecs");
+    
+    // Find and select the correct category
+    Array.from(categorySelect.options).forEach(option => {
+      if (option.text === category) {
+        categorySelect.value = option.value;
+      }
+    });
+
+    // Fetch specs for the selected category
+    fetchSpecsByCategory(categorySelect.value).then(() => {
+      // Find and select the correct specs
+      Array.from(specsSelect.options).forEach(option => {
+        if (option.text === specs) {
+          specsSelect.value = option.value;
+        }
+      });
+    });
+
+    document.getElementById("modalAmount").value = amount;
+    document.getElementById("modalDate").value = date;
+    document.getElementById("expenseModal").style.display = "flex";
+  }
+
   function deleteCard(button) {
     if (isLoading) return;
 
@@ -292,7 +478,9 @@
     const confirmAction = confirm("Are you sure you want to delete this expense?");
     if (!confirmAction) return;
 
-    showPageLoading(); // Show loading overlay
+    // Add loading state to the button
+    button.classList.add('loading');
+    isLoading = true;
 
     fetch(`/expenses/${id}`, {
       method: 'DELETE',
@@ -304,19 +492,96 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          document.querySelector(`.expense-card[data-id="${id}"]`)?.remove();
-          showConfirmationMessage('Expense deleted successfully!', true);
+          const card = button.closest('.expense-card');
+          card.style.opacity = '0';
+          card.style.transform = 'translateX(20px)';
+          setTimeout(() => {
+            card.remove();
+            // Update total expenses and category breakdown
+            updateSummaryAfterDelete(data.totalExpenses, data.categoryBreakdown);
+          }, 300);
+          showCustomConfirmation('Expense deleted successfully!', true);
         } else {
-          showConfirmationMessage(data.message || 'Failed to delete expense.', false);
+          showCustomConfirmation(data.message || 'Failed to delete expense.', false);
         }
       })
       .catch(error => {
         console.error('Error:', error);
-        showConfirmationMessage('An error occurred while deleting the expense.', false);
+        showCustomConfirmation('An error occurred while deleting the expense.', false);
       })
       .finally(() => {
-        hidePageLoading(); // Hide loading overlay
+        button.classList.remove('loading');
+        isLoading = false;
       });
+  }
+
+  function updateSummaryAfterDelete(totalExpenses, categoryBreakdown) {
+    // Update total expenses
+    document.querySelector('.total-expenses .amount').textContent = 
+      '₱' + parseFloat(totalExpenses).toFixed(2);
+
+    // Update category breakdown
+    const categoryList = document.querySelector('.category-list');
+    categoryList.innerHTML = '';
+    categoryBreakdown.forEach(category => {
+      const percentage = totalExpenses > 0 ? 
+        (category.total / totalExpenses) * 100 : 0;
+      
+      categoryList.innerHTML += `
+        <div class="category-item">
+          <span class="category-name">${category.name}</span>
+          <div class="category-bar">
+            <div class="bar-fill" style="width: ${percentage}%"></div>
+          </div>
+          <span class="category-amount">₱${parseFloat(category.total).toFixed(2)}</span>
+        </div>
+      `;
+    });
+  }
+
+  function filterByMonth(month) {
+    showPageLoading();
+    fetch(`/expenses?month=${month}`, {
+      headers: { 'Accept': 'application/json' },
+    })
+    .then(response => response.json())
+    .then(data => {
+      // Update the expenses grid
+      const grid = document.getElementById('recentExpensesGrid');
+      grid.innerHTML = '';
+      data.expenses.forEach(expense => {
+        grid.appendChild(createExpenseCard(expense));
+      });
+
+      // Update the summary section
+      document.querySelector('.total-expenses .amount').textContent = 
+        '₱' + parseFloat(data.totalExpenses).toFixed(2);
+
+      // Update category breakdown
+      const categoryList = document.querySelector('.category-list');
+      categoryList.innerHTML = '';
+      data.categoryBreakdown.forEach(category => {
+        const percentage = data.totalExpenses > 0 ? 
+          (category.total / data.totalExpenses) * 100 : 0;
+        
+        categoryList.innerHTML += `
+          <div class="category-item">
+            <span class="category-name">${category.name}</span>
+            <div class="category-bar">
+              <div class="bar-fill" style="width: ${percentage}%"></div>
+            </div>
+            <span class="category-amount">₱${parseFloat(category.total).toFixed(2)}</span>
+          </div>
+        `;
+      });
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showCustomConfirmation('Error loading expenses', false);
+    })
+    .finally(() => {
+      hidePageLoading();
+    });
   }
 </script>
 @endsection

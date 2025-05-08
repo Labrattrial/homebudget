@@ -49,6 +49,43 @@
               <input type="number" id="totalBudget" name="amount_limit" placeholder="e.g. 25,000" min="0" step="100" required>
           </div>
       </div>
+
+      <div class="category-budget-allocation">
+          <h3>Category Budget Allocation</h3>
+          <p class="allocation-subtitle">Distribute your budget across categories</p>
+          
+          <div class="allocation-summary">
+              <div class="total-allocated">
+                  <span>Total Allocated:</span>
+                  <span id="totalAllocated">₱0.00</span>
+              </div>
+              <div class="remaining-budget">
+                  <span>Remaining:</span>
+                  <span id="remainingBudget">₱0.00</span>
+              </div>
+          </div>
+
+          <div class="category-allocations">
+              @foreach($categories as $category)
+              <div class="category-allocation-item">
+                  <div class="category-info">
+                      <i class="fas fa-{{ $category->icon ?? 'shopping-bag' }}"></i>
+                      <span>{{ $category->name }}</span>
+                  </div>
+                  <div class="allocation-input">
+                      <span class="currency">₱</span>
+                      <input type="number" 
+                             class="category-budget" 
+                             data-category-id="{{ $category->id }}"
+                             placeholder="0.00" 
+                             min="0" 
+                             step="100">
+                      <span class="percentage">0%</span>
+                  </div>
+              </div>
+              @endforeach
+          </div>
+      </div>
       
       <button id="saveBudget" class="btn-primary">
         <i class="fas fa-save"></i> Set Budget
@@ -289,9 +326,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function initBudgetControls() {
         const saveBudgetBtn = document.getElementById('saveBudget');
+        const totalBudgetInput = document.getElementById('totalBudget');
+        const categoryBudgetInputs = document.querySelectorAll('.category-budget');
+        
         if (saveBudgetBtn) {
             saveBudgetBtn.addEventListener('click', handleSaveBudget);
         }
+
+        // Add event listeners for total budget input
+        if (totalBudgetInput) {
+            totalBudgetInput.addEventListener('input', updateBudgetAllocation);
+        }
+
+        // Add event listeners for category budget inputs
+        categoryBudgetInputs.forEach(input => {
+            input.addEventListener('input', updateBudgetAllocation);
+        });
 
         const editBudgetBtn = document.getElementById('editBudget');
         if (editBudgetBtn) {
@@ -305,127 +355,174 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function initViewToggles() {
-        const viewButtons = document.querySelectorAll('.view-btn');
-        const chartView = document.getElementById('chartView');
-        const categoryListView = document.getElementById('categoryListView');
+    function updateBudgetAllocation() {
+        const totalBudget = parseFloat(document.getElementById('totalBudget').value) || 0;
+        const categoryInputs = document.querySelectorAll('.category-budget');
+        let totalAllocated = 0;
 
-        viewButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                viewButtons.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                chartView.style.display = this.dataset.view === 'chart' ? 'block' : 'none';
-                categoryListView.style.display = this.dataset.view === 'table' ? 'block' : 'none';
-            });
+        // Update each category's percentage and calculate total allocated
+        categoryInputs.forEach(input => {
+            const amount = parseFloat(input.value) || 0;
+            const percentage = totalBudget > 0 ? (amount / totalBudget) * 100 : 0;
+            input.nextElementSibling.textContent = `${percentage.toFixed(1)}%`;
+            totalAllocated += amount;
         });
+
+        // Update summary
+        document.getElementById('totalAllocated').textContent = `₱${totalAllocated.toFixed(2)}`;
+        document.getElementById('remainingBudget').textContent = `₱${(totalBudget - totalAllocated).toFixed(2)}`;
+
+        // Visual feedback for over-allocation
+        const remainingBudget = totalBudget - totalAllocated;
+        const remainingElement = document.getElementById('remainingBudget');
+        if (remainingBudget < 0) {
+            remainingElement.style.color = 'var(--danger-color)';
+        } else {
+            remainingElement.style.color = '';
+        }
     }
 
     async function handleSaveBudget(event) {
-    event.preventDefault();
-    
-    const month = document.getElementById('currentMonth').value;
-    const totalBudget = Number(document.getElementById('totalBudget').value);
-
-    // Validate the budget input
-    if (isNaN(totalBudget) || totalBudget <= 0) {
-        showNotification('Please enter a valid budget amount greater than 0', 'error');
-        return;
-    }
-
-    const payload = {
-        month: month,
-        amount_limit: totalBudget,
-        category_id: null
-    };
-
-    try {
-        const response = await fetch("{{ route('saveBudgets') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify(payload)
-        });
-
-        // Check if the response is okay
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData?.message || 'Server error');
+        event.preventDefault();
+        
+        const month = document.getElementById('currentMonth').value;
+        const totalBudget = Number(document.getElementById('totalBudget').value);
+        const categoryInputs = document.querySelectorAll('.category-budget');
+        
+        // Validate the budget input
+        if (isNaN(totalBudget) || totalBudget <= 0) {
+            showNotification('Please enter a valid budget amount greater than 0', 'error');
+            return;
         }
 
-        const data = await response.json();
-        if (data.success) {
-            showNotification(data.message || 'Budget saved successfully!', 'success');
+        // Collect category budgets
+        const categoryBudgets = Array.from(categoryInputs).map(input => ({
+            category_id: input.dataset.categoryId,
+            amount_limit: Number(input.value) || 0
+        }));
+
+        // Calculate total allocated
+        const totalAllocated = categoryBudgets.reduce((sum, cat) => sum + cat.amount_limit, 0);
+        
+        // Validate total allocation
+        if (totalAllocated > totalBudget) {
+            showNotification('Total category allocation cannot exceed the total budget', 'error');
+            return;
+        }
+
+        try {
+            // Save overall budget
+            const overallBudgetResponse = await fetch("{{ route('saveBudgets') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    month: month,
+                    amount_limit: totalBudget,
+                    category_id: null
+                })
+            });
+
+            if (!overallBudgetResponse.ok) {
+                throw new Error('Failed to save overall budget');
+            }
+
+            // Save category budgets
+            for (const categoryBudget of categoryBudgets) {
+                if (categoryBudget.amount_limit > 0) {
+                    const categoryResponse = await fetch("{{ route('saveBudgets') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({
+                            month: month,
+                            amount_limit: categoryBudget.amount_limit,
+                            category_id: categoryBudget.category_id
+                        })
+                    });
+
+                    if (!categoryResponse.ok) {
+                        throw new Error('Failed to save category budget');
+                    }
+                }
+            }
+
+            showNotification('Budget saved successfully!', 'success');
             document.getElementById('budgetSetter').style.display = 'none';
             document.getElementById('budgetDashboard').style.display = 'block';
             
             // Reload data dynamically
             await loadDashboardData();
-        } else {
-            showNotification(data.message || 'Error saving budget', 'error');
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification(error.message || 'An error occurred. Please try again.', 'error');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification(error.message || 'An error occurred. Please try again.', 'error');
     }
-}
 
-// Function to load updated dashboard data
-async function loadDashboardData() {
-    try {
-        const response = await fetch("{{ route('user.dashboard.data') }}", {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+    // Function to load updated dashboard data
+    async function loadDashboardData() {
+        try {
+            const response = await fetch("{{ route('user.dashboard.data') }}", {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load dashboard data');
             }
+
+            const data = await response.json();
+            updateDashboard(data);
+            
+            // Update charts
+            if (window.spendingTrendChart) {
+                updateSpendingTrendChart(data.spendingTrend);
+            }
+            updateCategoryBreakdownChart();
+        } catch (error) {
+            console.error('Error loading dashboard data:', error);
+            showNotification('Failed to load updated data', 'error');
+        }
+    }
+
+    // Function to update the dashboard with new data
+    function updateDashboard(data) {
+        // Update budget display
+        document.querySelector('.stat-value').textContent = `₱${data.budget.toFixed(2)}`;
+        
+        // Update total expenses
+        document.querySelector('.budget-progress .progress-fill').style.width = `${(data.totalExpenses / data.budget) * 100}%`;
+        document.querySelector('.budget-progress .progress-labels span:first-child strong').textContent = `₱${data.totalExpenses.toFixed(2)}`;
+        document.querySelector('.budget-progress .progress-labels span:last-child strong').textContent = `₱${(data.budget - data.totalExpenses).toFixed(2)}`;
+
+        // Update category analysis
+        const categoryListView = document.getElementById('categoryListView');
+        categoryListView.innerHTML = ''; // Clear existing categories
+
+        data.categoryAnalysis.forEach(category => {
+            const categoryItem = document.createElement('div');
+            categoryItem.className = 'category-item';
+            categoryItem.innerHTML = `
+                <div class="category-color" style="background-color: ${category.color};"></div>
+                <span class="category-name">${category.name}</span>
+                <span class="category-amount">₱${category.spent.toFixed(2)}</span>
+                <span class="category-percent">${data.budget > 0 ? Math.round((category.spent / data.budget) * 100) : 0}%</span>
+            `;
+            categoryListView.appendChild(categoryItem);
         });
 
-        if (!response.ok) {
-            throw new Error('Failed to load dashboard data');
-        }
-
-        const data = await response.json();
-        // Update the dashboard with the new data
-        updateDashboard(data);
-    } catch (error) {
-        console.error('Error loading dashboard data:', error);
-        showNotification('Failed to load updated data', 'error');
+        // Update charts if necessary
+        // You can add more updates here based on the structure of your data
     }
-}
-
-// Function to update the dashboard with new data
-function updateDashboard(data) {
-    // Update budget display
-    document.querySelector('.stat-value').textContent = `₱${data.budget.toFixed(2)}`;
-    
-    // Update total expenses
-    document.querySelector('.budget-progress .progress-fill').style.width = `${(data.totalExpenses / data.budget) * 100}%`;
-    document.querySelector('.budget-progress .progress-labels span:first-child strong').textContent = `₱${data.totalExpenses.toFixed(2)}`;
-    document.querySelector('.budget-progress .progress-labels span:last-child strong').textContent = `₱${(data.budget - data.totalExpenses).toFixed(2)}`;
-
-    // Update category analysis
-    const categoryListView = document.getElementById('categoryListView');
-    categoryListView.innerHTML = ''; // Clear existing categories
-
-    data.categoryAnalysis.forEach(category => {
-        const categoryItem = document.createElement('div');
-        categoryItem.className = 'category-item';
-        categoryItem.innerHTML = `
-            <div class="category-color" style="background-color: ${category.color};"></div>
-            <span class="category-name">${category.name}</span>
-            <span class="category-amount">₱${category.spent.toFixed(2)}</span>
-            <span class="category-percent">${data.budget > 0 ? Math.round((category.spent / data.budget) * 100) : 0}%</span>
-        `;
-        categoryListView.appendChild(categoryItem);
-    });
-
-    // Update charts if necessary
-    // You can add more updates here based on the structure of your data
-}
-
 
     async function handleTransactionSubmit(e) {
         e.preventDefault();
@@ -609,6 +706,71 @@ if (categoryCtx) {
                 notification.style.opacity = '1';
             }, 300);
         }, 4000);
+    }
+
+    function initViewToggles() {
+        const viewButtons = document.querySelectorAll('.view-btn');
+        const chartView = document.getElementById('chartView');
+        const categoryListView = document.getElementById('categoryListView');
+
+        viewButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                viewButtons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                if (this.dataset.view === 'chart') {
+                    chartView.style.display = 'block';
+                    categoryListView.style.display = 'none';
+                    // Update the chart with current data
+                    updateCategoryBreakdownChart();
+                } else {
+                    chartView.style.display = 'none';
+                    categoryListView.style.display = 'block';
+                }
+            });
+        });
+    }
+
+    function updateCategoryBreakdownChart() {
+        const categoryCtx = document.getElementById('categoryBreakdownChart')?.getContext('2d');
+        if (!categoryCtx) return;
+
+        // Get current category data from the list
+        const categoryItems = document.querySelectorAll('.category-item');
+        const categoryData = Array.from(categoryItems).map(item => ({
+            name: item.querySelector('.category-name').textContent,
+            total: parseFloat(item.querySelector('.category-amount').textContent.replace('₱', '').replace(/,/g, '')),
+            color: item.querySelector('.category-color').style.backgroundColor
+        }));
+
+        // Destroy existing chart if it exists
+        if (window.categoryBreakdownChart) {
+            window.categoryBreakdownChart.destroy();
+        }
+
+        // Create new chart
+        window.categoryBreakdownChart = new Chart(categoryCtx, {
+            type: 'doughnut',
+            data: {
+                labels: categoryData.map(cat => cat.name),
+                datasets: [{
+                    data: categoryData.map(cat => cat.total),
+                    backgroundColor: categoryData.map(cat => cat.color),
+                    borderWidth: 0,
+                    cutout: '70%'
+                }]
+            },
+            options: getChartOptions('doughnut')
+        });
+    }
+
+    // Add function to update spending trend chart
+    function updateSpendingTrendChart(data) {
+        if (!window.spendingTrendChart || !data) return;
+
+        window.spendingTrendChart.data.labels = data.labels;
+        window.spendingTrendChart.data.datasets[0].data = data.values;
+        window.spendingTrendChart.update();
     }
 });
 </script>

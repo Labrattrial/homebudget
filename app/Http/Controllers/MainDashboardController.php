@@ -92,14 +92,48 @@ public function getDashboardData()
     // Prepare category analysis
     $categoryAnalysis = $this->getCategoryAnalysis($user, $transactions);
 
+    // Get spending trend data for the last 6 months
+    $spendingTrend = $this->getSpendingTrendData($user);
+
     return response()->json([
         'budget' => $overallBudget,
         'totalExpenses' => $currentMonthExpenses,
         'categoryAnalysis' => $categoryAnalysis,
-        // Add any other data you want to return
+        'spendingTrend' => $spendingTrend
     ]);
 }
 
+private function getSpendingTrendData($user)
+{
+    $months = [];
+    $values = [];
+    $currentDate = now();
+
+    // Get data for the last 6 months
+    for ($i = 5; $i >= 0; $i--) {
+        $date = $currentDate->copy()->subMonths($i);
+        $monthKey = $date->format('Y-m');
+        
+        $monthSpending = abs(Transaction::where('user_id', $user->id)
+            ->where('date', 'like', "$monthKey%")
+            ->where('amount', '<', 0)
+            ->sum('amount'));
+            
+        $months[] = $date->format('M');
+        $values[] = $monthSpending;
+    }
+
+    // Calculate trend percentage
+    $trend = count($values) > 1 ? 
+        (($values[count($values)-1] - $values[count($values)-2]) / ($values[count($values)-2] ?: 1)) * 100 
+        : 0;
+
+    return [
+        'labels' => $months,
+        'values' => $values,
+        'trend' => round($trend, 1)
+    ];
+}
 
 private function getCategoryAnalysis($user, $transactions)
 {

@@ -116,6 +116,11 @@
                         <span class="btn-text">Monthly</span>
                         <span class="spinner"></span>
                     </button>
+                    <div class="chart-actions">
+                        <button class="btn btn-outline-secondary" onclick="exportChart('spendingTrendChart')">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
                 </div>
                 <h4 id="spendingTitle" class="text-center mb-3">Monthly Spending</h4>
                 <div class="chart-wrapper">
@@ -134,6 +139,11 @@
                         <div class="chart-spinner"></div>
                     </div>
                     <canvas id="categoryBreakdownChart"></canvas>
+                    <div class="chart-actions">
+                        <button class="btn btn-outline-secondary" onclick="exportChart('categoryBreakdownChart')">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -178,6 +188,14 @@
 </div>
 
 <script>
+function exportChart(chartId) {
+    const canvas = document.getElementById(chartId);
+    const link = document.createElement('a');
+    link.download = `${chartId}-${new Date().toISOString().split('T')[0]}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     // Initialize DataTable with buttons
     const breakdownTable = $('#categoryBreakdownTable').DataTable({
@@ -203,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
             datasets: [{
                 label: 'Spending Trend',
                 data: JSON.parse('@json($trendAmounts ?? [])'),
-                backgroundColor: 'rgba(75, 192 , 192, 0.5)',
+                backgroundColor: 'rgba(75, 192, 192, 0.5)',
                 borderColor: 'rgba(75, 192, 192, 1)',
                 borderWidth: 1
             }]
@@ -212,10 +230,21 @@ document.addEventListener('DOMContentLoaded', function () {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'top' }
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw || 0;
+                            return `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+                        }
+                    }
+                }
             },
             scales: {
-                x: { title: { display: true, text: 'Date' }},
+                x: { 
+                    title: { display: true, text: 'Date' },
+                    grid: { display: false }
+                },
                 y: { 
                     title: { display: true, text: 'Amount (₱)' }, 
                     beginAtZero: true,
@@ -225,6 +254,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     }
                 }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
             }
         }
     });
@@ -236,8 +269,8 @@ document.addEventListener('DOMContentLoaded', function () {
             datasets: [{
                 data: JSON.parse('@json($categoryAmounts ?? [])'),
                 backgroundColor: [
-                    '#007bff', '#28a745', '#ffc107', '#dc3545', '#6c757d',
-                    '#17a2b8', '#6610f2', '#e83e8c', '#fd7e14', '#20c997'
+                    '#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F',
+                    '#EDC948', '#B07AA1', '#FF9DA7', '#9C755F', '#BAB0AC'
                 ]
             }]
         },
@@ -245,7 +278,13 @@ document.addEventListener('DOMContentLoaded', function () {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' },
+                legend: { 
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -253,7 +292,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             const value = context.raw || 0;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                             const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                            return `${label}: ₱${value.toLocaleString()} (${percentage}%)`;
+                            return `${label}: ₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })} (${percentage}%)`;
                         }
                     }
                 }
@@ -293,15 +332,27 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Main data loading function
-    function loadData(startDate, endDate, viewType = 'monthly') {
+    function loadData(startDate, endDate, viewType = 'monthly', retryCount = 0) {
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY = 2000; // 2 seconds
+
         setLoading(document.getElementById('applyDateRange'), true);
         document.querySelectorAll('.chart-container').forEach(container => {
             setChartLoading(container, true);
         });
 
+        // Remove any existing error messages
+        const existingError = document.querySelector('.error-message');
+        if (existingError) {
+            existingError.remove();
+        }
+
         fetch(`/analysis/data/custom?start=${startDate}&end=${endDate}&view=${viewType}`)
-            .then(res => {
-                if (!res.ok) throw new Error('Network response was not ok');
+            .then(async res => {
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.message || 'Network response was not ok');
+                }
                 return res.json();
             })
             .then(data => {
@@ -330,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const utilization = allocated > 0 ? (spent / allocated * 100).toFixed(1) + '%' : 'N/A';
                         const percentage = totalSpending > 0 ? (spent / totalSpending * 100).toFixed(1) + '%' : '0%';
                         
-                        breakdownTable.row .add([
+                        breakdownTable.row.add([
                             name,
                             `₱${spent.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
                             `₱${allocated.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
@@ -382,6 +433,15 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(error => {
                 console.error('Error loading data:', error);
+                
+                if (retryCount < MAX_RETRIES) {
+                    // Retry after delay
+                    setTimeout(() => {
+                        loadData(startDate, endDate, viewType, retryCount + 1);
+                    }, RETRY_DELAY);
+                    return;
+                }
+
                 const errorMessage = document.createElement('div');
                 errorMessage.className = 'error-message';
                 errorMessage.innerHTML = `
@@ -389,8 +449,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         <i class="fas fa-exclamation-triangle"></i>
                         <div>
                             <h4>Oops! Something went wrong</h4>
-                            <p>We couldn't load your data. Please check your connection and try again.</p>
-                            <button class="btn btn-primary retry-btn">Try Again</button>
+                            <p>${error.message || 'We couldn\'t load your data. Please check your connection and try again.'}</p>
+                            <div class="error-actions">
+                                <button class="btn btn-primary retry-btn">
+                                    <i class="fas fa-sync-alt"></i> Try Again
+                                </button>
+                                <button class="btn btn-outline-secondary refresh-btn">
+                                    <i class="fas fa-redo"></i> Refresh Page
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -401,6 +468,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 errorMessage.querySelector('.retry-btn').addEventListener('click', function() {
                     errorMessage.remove();
                     loadData(startDate, endDate, viewType);
+                });
+
+                errorMessage.querySelector('.refresh-btn').addEventListener('click', function() {
+                    window.location.reload();
                 });
             })
             .finally(() => {
