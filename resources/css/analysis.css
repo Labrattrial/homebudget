@@ -772,46 +772,63 @@ input:checked + .slider:before {
 
 /* Add to your CSS */
 .error-message {
-    background: #fff3cd;
-    border-left: 4px solid #ffc107;
-    padding: 15px;
-    margin-bottom: 20px;
-    border-radius: 4px;
-    animation: slideIn 0.3s ease-out;
+    background-color: #fff3f3;
+    border: 1px solid #ffcdd2;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .error-content {
     display: flex;
-    gap: 15px;
     align-items: flex-start;
+    gap: 1rem;
 }
 
 .error-content i {
-    color: #ffc107;
-    font-size: 24px;
-    margin-top: 3px;
+    color: #dc3545;
+    font-size: 1.5rem;
+    margin-top: 0.25rem;
 }
 
 .error-content h4 {
-    margin: 0 0 5px 0;
-    color: #856404;
+    color: #dc3545;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
 }
 
 .error-content p {
-    margin: 0 0 10px 0;
-    color: #856404;
+    color: #666;
+    margin: 0 0 1rem 0;
+    font-size: 0.95rem;
 }
 
 .error-actions {
     display: flex;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 0.5rem;
 }
 
 .retry-btn {
-    background: #ffc107;
-    border-color: #ffc107;
-    color: #343a40;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+    background-color: #0056b3;
+}
+
+.retry-btn i {
+    font-size: 0.9rem;
 }
 
 /* Ensure focus states are visible */
@@ -915,5 +932,110 @@ button:focus, input:focus, .range-preset:focus {
     canvas {
         max-width: 100% !important;
         height: auto !important;
+    }
+}
+
+/* Empty States */
+.no-data-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+    color: #6c757d;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+
+.no-data-message i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #adb5bd;
+}
+
+.no-data-message p {
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+/* Loading States */
+.button-loading {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+}
+
+.button-loading::after {
+    content: '';
+    position: absolute;
+    width: 1rem;
+    height: 1rem;
+    top: 50%;
+    left: 50%;
+    margin: -0.5rem 0 0 -0.5rem;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.chart-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+    z-index: 10;
+}
+
+.chart-loading-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.chart-spinner {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 3px solid rgba(0, 123, 255, 0.3);
+    border-top-color: #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Disabled States */
+.chart-filter-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .error-content {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .error-content i {
+        margin-bottom: 0.5rem;
+    }
+
+    .error-actions {
+        justify-content: center;
     }
 }

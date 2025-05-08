@@ -3,6 +3,56 @@
 @section('content')
 @vite(['resources/css/expenses.css', 'resources/js/fontawesome.js'])
 
+<style>
+  .custom-confirmation {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+
+  .custom-confirmation.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .custom-confirmation.success {
+    background-color: #4CAF50;
+    color: white;
+  }
+
+  .custom-confirmation.error {
+    background-color: #f44336;
+    color: white;
+  }
+
+  .custom-confirmation .icon {
+    font-size: 20px;
+  }
+
+  .custom-confirmation .message {
+    font-size: 14px;
+  }
+
+  .expense-card {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  
+  .expense-card.fade-out {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+</style>
+
 <div class="expenses-wrapper">
   <!-- Summary Section -->
   <div class="expenses-summary">
@@ -68,9 +118,9 @@
   </div>
 
   <!-- Modal -->
-  <div id="expenseModal" class="modal" role="dialog" aria-hidden="true">
+  <div id="expenseModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-modal="true">
     <div class="modal-content">
-      <button class="close" onclick="closeModal()" aria-label="Close">&times;</button>
+      <button class="close" onclick="closeModal()" aria-label="Close modal">&times;</button>
       <h2 id="modalTitle">
         <i class="fas fa-plus-circle"></i>
         <span>Add New Expense</span>
@@ -142,7 +192,7 @@
   </div>
 
   <!-- Custom Confirmation Message -->
-  <div id="customConfirmation" class="custom-confirmation">
+  <div id="customConfirmation" class="custom-confirmation" role="alert" aria-live="polite">
     <div class="icon">
       <i class="fas fa-check"></i>
     </div>
@@ -167,24 +217,58 @@
   }
 
   function showCustomConfirmation(message, success = true) {
-    const confirmation = document.getElementById('customConfirmation');
-    const icon = confirmation.querySelector('.icon i');
-    const messageEl = confirmation.querySelector('.message');
-    
-    // Update content
-    messageEl.textContent = message;
-    icon.className = success ? 'fas fa-check' : 'fas fa-times';
-    
-    // Update classes
-    confirmation.className = 'custom-confirmation ' + (success ? 'success' : 'error');
-    
-    // Show confirmation
-    confirmation.classList.add('show');
-    
-    // Hide after 3 seconds
-    setTimeout(() => {
-      confirmation.classList.remove('show');
-    }, 3000);
+    try {
+      // Create confirmation element if it doesn't exist
+      let confirmation = document.getElementById('customConfirmation');
+      if (!confirmation) {
+        confirmation = document.createElement('div');
+        confirmation.id = 'customConfirmation';
+        confirmation.className = 'custom-confirmation';
+        confirmation.setAttribute('role', 'alert');
+        confirmation.setAttribute('aria-live', 'polite');
+        
+        const iconDiv = document.createElement('div');
+        iconDiv.className = 'icon';
+        const icon = document.createElement('i');
+        icon.className = success ? 'fas fa-check' : 'fas fa-times';
+        iconDiv.appendChild(icon);
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message';
+        messageDiv.textContent = message;
+        
+        confirmation.appendChild(iconDiv);
+        confirmation.appendChild(messageDiv);
+        document.body.appendChild(confirmation);
+      } else {
+        // Update existing confirmation
+        const icon = confirmation.querySelector('.icon i');
+        const messageEl = confirmation.querySelector('.message');
+        
+        if (icon) {
+          icon.className = success ? 'fas fa-check' : 'fas fa-times';
+        }
+        
+        if (messageEl) {
+          messageEl.textContent = message;
+        }
+      }
+      
+      // Update classes
+      confirmation.className = 'custom-confirmation ' + (success ? 'success' : 'error');
+      
+      // Show confirmation
+      confirmation.classList.add('show');
+      
+      // Hide after 3 seconds
+      setTimeout(() => {
+        confirmation.classList.remove('show');
+      }, 3000);
+    } catch (error) {
+      console.error('Error showing confirmation:', error);
+      // Fallback to alert if confirmation message fails
+      alert(message);
+    }
   }
 
   function showModalLoading(show) {
@@ -199,16 +283,26 @@
   async function fetchSpecsByCategory(categoryId) {
     showModalLoading(true);
     try {
-      const response = await fetch(`/categories/${categoryId}/descriptions`, {
+      const response = await fetch(`/expenses/categories/${categoryId}/descriptions`, {
         headers: { 'Accept': 'application/json' },
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       const specsDropdown = document.getElementById('modalSpecs');
       specsDropdown.innerHTML = '<option value="" disabled selected>Select specs</option>';
-      data.specs.forEach(spec => {
-        specsDropdown.insertAdjacentHTML('beforeend', `<option value="${spec}">${spec}</option>`);
-      });
+      
+      if (data.specs && Array.isArray(data.specs)) {
+        data.specs.forEach(spec => {
+          if (spec) { // Only add non-null/undefined specs
+            specsDropdown.insertAdjacentHTML('beforeend', `<option value="${spec}">${spec}</option>`);
+          }
+        });
+      }
     } catch (error) {
       console.error('Error fetching specs:', error);
       showCustomConfirmation('Error loading specs', false);
@@ -244,23 +338,41 @@
     document.getElementById("modalSpecs").value = '';
     document.getElementById("newSpecsInput").value = '';
     document.getElementById("expenseModal").style.display = "flex";
+    document.getElementById("expenseModal").setAttribute('aria-hidden', 'false');
+    // Focus the first input when modal opens
+    setTimeout(() => {
+      document.getElementById("modalCategory").focus();
+    }, 100);
   }
 
   function closeModal() {
     if (isLoading) return;
-    document.getElementById("expenseModal").style.display = "none";
+    const modal = document.getElementById("expenseModal");
+    modal.style.display = "none";
+    // Remove aria-hidden after a short delay to ensure focus is properly managed
+    setTimeout(() => {
+      modal.setAttribute('aria-hidden', 'true');
+    }, 100);
   }
 
   function toggleSpecsInput(option) {
     const existingContainer = document.getElementById('existingSpecsContainer');
     const newContainer = document.getElementById('newSpecsContainer');
+    const existingSelect = document.getElementById('modalSpecs');
+    const newInput = document.getElementById('newSpecsInput');
 
     if (option === 'existing') {
       existingContainer.style.display = 'block';
       newContainer.style.display = 'none';
+      existingSelect.required = true;
+      newInput.required = false;
+      newInput.value = ''; // Clear new input when switching
     } else {
       existingContainer.style.display = 'none';
       newContainer.style.display = 'block';
+      existingSelect.required = false;
+      newInput.required = true;
+      existingSelect.value = ''; // Clear select when switching
     }
   }
 
@@ -341,6 +453,15 @@
 
     try {
       const formData = new FormData(this);
+      
+      // Only include specs_option if one is selected
+      const specsOption = document.querySelector('input[name="specs_option"]:checked');
+      if (!specsOption) {
+        formData.delete('specs_option');
+        formData.delete('description');
+        formData.delete('new_specs');
+      }
+
       if (editingId) {
         formData.append('_method', 'PUT');
       }
@@ -360,11 +481,19 @@
       if (data.success) {
         showCustomConfirmation('Expense saved successfully!', true);
         closeModal();
-        const newExpenseCard = createExpenseCard(data.expense);
-        document.getElementById('recentExpensesGrid').prepend(newExpenseCard);
-        updateSummaryAfterDelete(data.totalExpenses, data.categoryBreakdown);
+        
+        // Add the new expense card
+        if (data.expense) {
+          const newExpenseCard = createExpenseCard(data.expense);
+          document.getElementById('recentExpensesGrid').prepend(newExpenseCard);
+        }
+        
+        // Update summary if data is available
+        if (data.totalExpenses !== undefined && data.categoryBreakdown) {
+          updateSummaryAfterDelete(data.totalExpenses, data.categoryBreakdown);
+        }
       } else {
-        showValidationErrors(data.errors);
+        showValidationErrors(data.errors || {});
         showCustomConfirmation('Please check the form for errors', false);
       }
     } catch (error) {
@@ -432,7 +561,7 @@
     });
   }
 
-  function editCard(button) {
+  async function editCard(button) {
     if (isLoading) return;
     
     const id = button.getAttribute('data-id');
@@ -456,25 +585,55 @@
       }
     });
 
-    // Fetch specs for the selected category
-    fetchSpecsByCategory(categorySelect.value).then(() => {
-      // Find and select the correct specs
-      Array.from(specsSelect.options).forEach(option => {
-        if (option.text === specs) {
-          specsSelect.value = option.value;
-        }
-      });
-    });
+    // Set the specs option based on whether the specs exist in the dropdown
+    const existingSpecsRadio = document.getElementById('existingSpecs');
+    const newSpecsRadio = document.getElementById('newSpecs');
+    const existingSpecsContainer = document.getElementById('existingSpecsContainer');
+    const newSpecsContainer = document.getElementById('newSpecsContainer');
+    const newSpecsInput = document.getElementById('newSpecsInput');
+
+    try {
+      // Fetch specs for the selected category
+      await fetchSpecsByCategory(categorySelect.value);
+      
+      // Check if the specs exist in the dropdown
+      const specsExists = Array.from(specsSelect.options).some(option => option.text === specs);
+      
+      if (specsExists) {
+        existingSpecsRadio.checked = true;
+        existingSpecsContainer.style.display = 'block';
+        newSpecsContainer.style.display = 'none';
+        specsSelect.value = specs;
+        newSpecsInput.value = '';
+      } else {
+        newSpecsRadio.checked = true;
+        existingSpecsContainer.style.display = 'none';
+        newSpecsContainer.style.display = 'block';
+        newSpecsInput.value = specs;
+        specsSelect.value = '';
+      }
+    } catch (error) {
+      console.error('Error in editCard:', error);
+      showCustomConfirmation('Error loading expense details', false);
+    }
 
     document.getElementById("modalAmount").value = amount;
     document.getElementById("modalDate").value = date;
     document.getElementById("expenseModal").style.display = "flex";
+    document.getElementById("expenseModal").setAttribute('aria-hidden', 'false');
   }
 
-  function deleteCard(button) {
+  async function deleteCard(button) {
     if (isLoading) return;
 
     const id = button.getAttribute('data-id');
+    const card = button.closest('.expense-card');
+    
+    if (!card) {
+      console.error('Card element not found');
+      return;
+    }
+
     const confirmAction = confirm("Are you sure you want to delete this expense?");
     if (!confirmAction) return;
 
@@ -482,37 +641,47 @@
     button.classList.add('loading');
     isLoading = true;
 
-    fetch(`/expenses/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-        'Accept': 'application/json',
-      },
-    })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          const card = button.closest('.expense-card');
-          card.style.opacity = '0';
-          card.style.transform = 'translateX(20px)';
-          setTimeout(() => {
-            card.remove();
-            // Update total expenses and category breakdown
-            updateSummaryAfterDelete(data.totalExpenses, data.categoryBreakdown);
-          }, 300);
-          showCustomConfirmation('Expense deleted successfully!', true);
-        } else {
-          showCustomConfirmation(data.message || 'Failed to delete expense.', false);
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showCustomConfirmation('An error occurred while deleting the expense.', false);
-      })
-      .finally(() => {
-        button.classList.remove('loading');
-        isLoading = false;
+    try {
+      const response = await fetch(`/expenses/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          'Accept': 'application/json',
+        },
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Add animation class
+        card.classList.add('fade-out');
+        
+        // Wait for animation to complete before removing
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Remove the card
+        card.remove();
+        
+        // Update total expenses and category breakdown
+        if (data.totalExpenses !== undefined && data.categoryBreakdown) {
+          updateSummaryAfterDelete(data.totalExpenses, data.categoryBreakdown);
+        }
+        
+        showCustomConfirmation('Expense deleted successfully!', true);
+      } else {
+        throw new Error(data.message || 'Failed to delete expense');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showCustomConfirmation(error.message || 'An error occurred while deleting the expense.', false);
+    } finally {
+      button.classList.remove('loading');
+      isLoading = false;
+    }
   }
 
   function updateSummaryAfterDelete(totalExpenses, categoryBreakdown) {

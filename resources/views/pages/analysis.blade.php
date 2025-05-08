@@ -3,7 +3,7 @@
 @section('content')
 @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/css/analysis.css', 'resources/js/chart.js'])
 
-<div class="dashboard-container"> <!-- Match dashboard container for positioning -->
+<div class="dashboard-container">
     <div class="analysis-wrapper">
         <!-- Preferences Bar -->
         <div class="preferences-bar">
@@ -29,8 +29,8 @@
         
         <!-- Summary Metrics -->
         <div class="summary-metrics">
-            <p>Total Spending: ₱<span id="totalSpending">{{ number_format($totalSpending, 2) }}</span></p>
-            <p>Daily Average: ₱<span id="dailyAverage">{{ number_format($dailyAverage, 2) }}</span></p>
+            <p>Total Spending: ₱<span id="totalSpending">{{ number_format($totalSpending ?? 0, 2) }}</span></p>
+            <p>Daily Average: ₱<span id="dailyAverage">{{ number_format($dailyAverage ?? 0, 2) }}</span></p>
         </div>
 
         <!-- Date Range Selector -->
@@ -82,7 +82,7 @@
                 </div>
                 <div class="card-content">
                     <h3>Potential Savings</h3>
-                    <p class="amount">₱<span id="potentialSavings">0.00</span></ p>
+                    <p class="amount">₱<span id="potentialSavings">0.00</span></p>
                     <p class="change">Based on 10% reduction</p>
                 </div>
             </div>
@@ -92,7 +92,7 @@
                 </div>
                 <div class="card-content">
                     <h3>Daily Average</h3>
-                    <p class="amount">₱<span id="dailyAverageCard">{{ number_format($dailyAverage, 2) }}</span></p>
+                    <p class="amount">₱<span id="dailyAverageCard">{{ number_format($dailyAverage ?? 0, 2) }}</span></p>
                     <p class="change">Current period</p>
                 </div>
             </div>
@@ -127,6 +127,10 @@
                     <div class="chart-loading-overlay">
                         <div class="chart-spinner"></div>
                     </div>
+                    <div class="no-data-message" style="display: none;">
+                        <i class="fas fa-chart-line"></i>
+                        <p>No spending data available for the selected period</p>
+                    </div>
                     <canvas id="spendingTrendChart"></canvas>
                 </div>
             </div>
@@ -137,6 +141,10 @@
                 <div class="chart-wrapper">
                     <div class="chart-loading-overlay">
                         <div class="chart-spinner"></div>
+                    </div>
+                    <div class="no-data-message" style="display: none;">
+                        <i class="fas fa-pie-chart"></i>
+                        <p>No category data available for the selected period</p>
                     </div>
                     <canvas id="categoryBreakdownChart"></canvas>
                     <div class="chart-actions">
@@ -151,76 +159,76 @@
         <!-- Detailed Breakdown Table -->
         <div class="detailed-breakdown">
             <h2>Detailed Category Breakdown</h2>
-            <table id="categoryBreakdownTable" class="display nowrap" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Category</th>
-                        <th>Spent Amount</th>
-                        <th>Allocated Amount</th>
-                        <th>Utilization</th>
-                        <th>Percentage of Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if(!empty($categoryBreakdown))
-                        @foreach($categoryBreakdown as $category)
-                            <tr>
-                                <td>{{ $category['name'] }}</td>
-                                <td>₱{{ number_format($category['amount'], 2) }}</td>
-                                <td>₱{{ number_format($category['allocated'] ?? 0, 2) }}</td>
-                                <td>
-                                    @if($category['allocated'] > 0)
-                                        {{ round(($category['amount'] / $category['allocated']) * 100, 1) }}%
-                                    @else
-                                        N/A
-                                    @endif
-                                </td>
-                                <td>
-                                    {{ $totalSpending > 0 ? round(($category['amount'] / $totalSpending) * 100, 1) . '%' : '0%' }}
-                                </td>
-                            </tr>
-                        @endforeach
-                    @endif
-                </tbody>
-            </table>
+            <div class="table-wrapper">
+                <div class="no-data-message" style="display: none;">
+                    <i class="fas fa-table"></i>
+                    <p>No category breakdown data available for the selected period</p>
+                </div>
+                <table id="categoryBreakdownTable" class="display nowrap" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Spent Amount</th>
+                            <th>Allocated Amount</th>
+                            <th>Utilization</th>
+                            <th>Percentage of Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if(!empty($categoryBreakdown))
+                            @foreach($categoryBreakdown as $category)
+                                <tr>
+                                    <td>{{ $category['name'] }}</td>
+                                    <td>₱{{ number_format($category['amount'], 2) }}</td>
+                                    <td>₱{{ number_format($category['allocated'] ?? 0, 2) }}</td>
+                                    <td>
+                                        @if($category['allocated'] > 0)
+                                            {{ round(($category['amount'] / $category['allocated']) * 100, 1) }}%
+                                        @else
+                                            N/A
+                                        @endif
+                                    </td>
+                                    <td>
+                                        {{ $totalSpending > 0 ? round(($category['amount'] / $totalSpending) * 100, 1) . '%' : '0%' }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        @endif
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-function exportChart(chartId) {
-    const canvas = document.getElementById(chartId);
-    const link = document.createElement('a');
-    link.download = `${chartId}-${new Date().toISOString().split('T')[0]}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-}
+let spendingTrendChart = null;
+let categoryBreakdownChart = null;
+let breakdownTable = null;
 
-document.addEventListener('DOMContentLoaded', function () {
-    // Initialize DataTable with buttons
-    const breakdownTable = $('#categoryBreakdownTable').DataTable({
+function initializeCharts() {
+    // Initialize DataTable
+    breakdownTable = $('#categoryBreakdownTable').DataTable({
         responsive: true,
         dom: 'Bfrtip',
-        buttons: [
-            'copy', 'csv', 'excel', 'pdf', 'print'
-        ],
+        buttons: ['copy', 'csv', 'excel', 'pdf', 'print'],
         order: [[1, 'desc']],
         language: {
             emptyTable: "No data available in table"
         }
     });
 
-    // Initialize charts
+    // Initialize charts with empty data
     const trendCtx = document.getElementById('spendingTrendChart').getContext('2d');
     const categoryCtx = document.getElementById('categoryBreakdownChart').getContext('2d');
 
-    const spendingTrendChart = new Chart(trendCtx, {
+    spendingTrendChart = new Chart(trendCtx, {
         type: 'bar',
         data: {
-            labels: JSON.parse('@json($trendDates ?? [])'),
+            labels: [],
             datasets: [{
                 label: 'Spending Trend',
-                data: JSON.parse('@json($trendAmounts ?? [])'),
+                data: [],
                 backgroundColor: 'rgba(75, 192, 192, 0.5)',
                 borderColor: 'rgba(75, 192, 192, 1)',
                 borderWidth: 1
@@ -250,335 +258,271 @@ document.addEventListener('DOMContentLoaded', function () {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return '₱' + value.toLocaleString();
+                            return '₱' + value.toLocaleString('en-PH');
                         }
                     }
                 }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'index'
             }
         }
     });
 
-    const categoryBreakdownChart = new Chart(categoryCtx, {
-        type: 'pie',
+    categoryBreakdownChart = new Chart(categoryCtx, {
+        type: 'doughnut',
         data: {
-            labels: JSON.parse('@json($categoryNames ?? [])'),
+            labels: [],
             datasets: [{
-                data: JSON.parse('@json($categoryAmounts ?? [])'),
+                data: [],
                 backgroundColor: [
-                    '#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F',
-                    '#EDC948', '#B07AA1', '#FF9DA7', '#9C755F', '#BAB0AC'
-                ]
+                    'rgba(75, 192, 192, 0.5)',
+                    'rgba(255, 99, 132, 0.5)',
+                    'rgba(54, 162, 235, 0.5)',
+                    'rgba(255, 206, 86, 0.5)',
+                    'rgba(153, 102, 255, 0.5)'
+                ],
+                borderColor: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(153, 102, 255, 1)'
+                ],
+                borderWidth: 1
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { 
-                    position: 'bottom',
+                legend: {
+                    position: 'right',
                     labels: {
-                        padding: 20,
-                        usePointStyle: true
+                        boxWidth: 15,
+                        padding: 15
                     }
                 },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            const label = context.label || '';
                             const value = context.raw || 0;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                            return `${label}: ₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })} (${percentage}%)`;
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${context.label}: ₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })} (${percentage}%)`;
                         }
                     }
                 }
             }
         }
     });
+}
 
-    // Loading state functions
-    function setLoading(button, isLoading) {
-        const spinner = button.querySelector('.spinner');
-        const btnText = button.querySelector('.btn-text');
+function updateCharts(data) {
+    // Update spending trend chart
+    if (data.trendDates && data.trendDates.length > 0) {
+        spendingTrendChart.data.labels = data.trendDates;
+        spendingTrendChart.data.datasets[0].data = data.trendAmounts;
+        spendingTrendChart.update();
+        $('#spendingTrendChart').parent().find('.no-data-message').hide();
+    } else {
+        $('#spendingTrendChart').parent().find('.no-data-message').show();
+    }
+
+    // Update category breakdown chart
+    if (data.categoryNames && data.categoryNames.length > 0) {
+        categoryBreakdownChart.data.labels = data.categoryNames;
+        categoryBreakdownChart.data.datasets[0].data = data.categoryAmounts;
+        categoryBreakdownChart.update();
+        $('#categoryBreakdownChart').parent().find('.no-data-message').hide();
+    } else {
+        $('#categoryBreakdownChart').parent().find('.no-data-message').show();
+    }
+
+    // Update summary metrics
+    $('#totalSpending').text(data.totalSpending.toLocaleString('en-PH', { minimumFractionDigits: 2 }));
+    $('#dailyAverage').text(data.dailyAverage.toLocaleString('en-PH', { minimumFractionDigits: 2 }));
+    $('#dailyAverageCard').text(data.dailyAverage.toLocaleString('en-PH', { minimumFractionDigits: 2 }));
+
+    // Update potential savings
+    const potentialSavings = data.totalSpending * 0.1;
+    $('#potentialSavings').text(potentialSavings.toLocaleString('en-PH', { minimumFractionDigits: 2 }));
+
+    // Update budget progress
+    if (data.budgetAmount > 0) {
+        const progress = (data.totalSpending / data.budgetAmount) * 100;
+        $('#budgetProgressFill').css('width', `${Math.min(progress, 100)}%`);
+        $('#budgetProgressText').text(`${progress.toFixed(1)}% of Budget`);
         
-        if (isLoading) {
-            button.disabled = true;
-            spinner.style.display = 'inline-block';
-            btnText.style.opacity = '0.7';
-            button.classList.add('button-loading');
+        // Update progress bar color based on utilization
+        const progressFill = $('#budgetProgressFill');
+        if (progress > 90) {
+            progressFill.css('background-color', '#dc3545');
+        } else if (progress > 70) {
+            progressFill.css('background-color', '#ffc107');
         } else {
-            button.disabled = false;
-            spinner.style.display = 'none';
-            btnText.style.opacity = '1';
-            button.classList.remove('button-loading');
+            progressFill.css('background-color', '#28a745');
         }
     }
 
-    function setChartLoading(chartContainer, isLoading) {
-        const wrapper = chartContainer.querySelector('.chart-wrapper');
-        const canvas = chartContainer.querySelector('canvas');
-        
-        if (isLoading) {
-            wrapper.classList.add('chart-loading');
-            canvas.style.visibility = 'hidden';
-        } else {
-            wrapper.classList.remove('chart-loading');
-            canvas.style.visibility = 'visible';
-        }
-    }
-
-    // Main data loading function
-    function loadData(startDate, endDate, viewType = 'monthly', retryCount = 0) {
-        const MAX_RETRIES = 3;
-        const RETRY_DELAY = 2000; // 2 seconds
-
-        setLoading(document.getElementById('applyDateRange'), true);
-        document.querySelectorAll('.chart-container').forEach(container => {
-            setChartLoading(container, true);
+    // Update table data
+    breakdownTable.clear();
+    if (data.categoryNames && data.categoryNames.length > 0) {
+        data.categoryNames.forEach((name, index) => {
+            const amount = data.categoryAmounts[index];
+            const percentage = data.totalSpending > 0 ? ((amount / data.totalSpending) * 100).toFixed(1) : 0;
+            
+            breakdownTable.row.add([
+                name,
+                `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                `₱${data.budgetAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                data.budgetAmount > 0 ? `${((amount / data.budgetAmount) * 100).toFixed(1)}%` : 'N/A',
+                `${percentage}%`
+            ]);
         });
+    }
+    breakdownTable.draw();
 
-        // Remove any existing error messages
-        const existingError = document.querySelector('.error-message');
-        if (existingError) {
-            existingError.remove();
-        }
+    // Show/hide no data message for table
+    if (data.categoryNames && data.categoryNames.length > 0) {
+        $('.table-wrapper .no-data-message').hide();
+    } else {
+        $('.table-wrapper .no-data-message').show();
+    }
+}
 
-        fetch(`/analysis/data/custom?start=${startDate}&end=${endDate}&view=${viewType}`)
-            .then(async res => {
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.message || 'Network response was not ok');
-                }
-                return res.json();
-            })
-            .then(data => {
-                // Update charts
-                if (data.trendDates && data.trendAmounts) {
-                    spendingTrendChart.data.labels = data.trendDates;
-                    spendingTrendChart.data.datasets[0].data = data.trendAmounts;
-                    spendingTrendChart.update();
-                }
+function loadData(startDate, endDate, viewType = 'monthly') {
+    showLoading();
+    
+    fetch(`/analysis/data?start=${startDate}&end=${endDate}&view=${viewType}`)
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.message || 'Failed to load data');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.message || data.error);
+            }
+            updateCharts(data);
+            hideLoading();
+        })
+        .catch(error => {
+            console.error('Error loading data:', error);
+            hideLoading();
+            showError(error.message || 'Failed to load analysis data. Please try again.');
+        });
+}
 
-                if (data.categoryNames && data.categoryAmounts) {
-                    categoryBreakdownChart.data.labels = data.categoryNames;
-                    categoryBreakdownChart.data.datasets[0].data = data.categoryAmounts;
-                    categoryBreakdownChart.update();
-                }
+function showLoading() {
+    $('.chart-loading-overlay').addClass('active');
+    $('#applyDateRange').addClass('button-loading');
+    $('.chart-filter-btn').prop('disabled', true);
+}
 
-                // Update DataTable
-                breakdownTable.clear();
-                if (data.categoryNames?.length) {
-                    const totalSpending = data.categoryAmounts.reduce((sum, amount) => sum + amount, 0);
-                    const totalAllocation = data.categoryAllocations?.reduce((sum, amount) => sum + amount, 0) || 0;
-                    
-                    data.categoryNames.forEach((name, index) => {
-                        const spent = data.categoryAmounts[index];
-                        const allocated = data.categoryAllocations?.[index] || 0;
-                        const utilization = allocated > 0 ? (spent / allocated * 100).toFixed(1) + '%' : 'N/A';
-                        const percentage = totalSpending > 0 ? (spent / totalSpending * 100).toFixed(1) + '%' : '0%';
-                        
-                        breakdownTable.row.add([
-                            name,
-                            `₱${spent.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-                            `₱${allocated.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-                            utilization,
-                            percentage
-                        ]);
-                    });
-                }
-                breakdownTable.draw();
+function hideLoading() {
+    $('.chart-loading-overlay').removeClass('active');
+    $('#applyDateRange').removeClass('button-loading');
+    $('.chart-filter-btn').prop('disabled', false);
+}
 
-                // Update metrics
-                if (data.totalSpending !== undefined) {
-                    document.getElementById('totalSpending').textContent =
-                        data.totalSpending.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-                    document.getElementById('dailyAverage').textContent =
-                        data.dailyAverage.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-                    document.getElementById('dailyAverageCard').textContent =
-                        data.dailyAverage.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-                        
-                    if (data.totalAllocation > 0) {
-                        const utilization = (data.totalSpending / data.totalAllocation * 100).toFixed(1);
-                        document.getElementById('budgetProgressFill').style.width = `${Math.min(100, utilization)}%`;
-                        document.getElementById('budgetProgressText').textContent = `${utilization}% of budget used`;
-                        
-                        // Set progress bar color
-                        const progressFill = document.getElementById('budgetProgressFill');
-                        if (utilization > 90) {
-                            progressFill.style.backgroundColor = '#dc3545';
-                        } else if (utilization > 70) {
-                            progressFill.style.backgroundColor = '#ffc107';
-                        } else {
-                            progressFill.style.backgroundColor = '#28a745';
-                        }
-                    }
-                    
-                    // Calculate potential savings
-                    const potentialSavings = data.totalSpending * 0.1;
-                    document.getElementById('potentialSavings').textContent = 
-                        potentialSavings.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-                }
-
-                // Update title
-                const viewTypeText = viewType.charAt(0).toUpperCase() + viewType.slice(1);
-                document.getElementById('spendingTitle').textContent =
-                    `${viewTypeText} Spending from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`;
-                
-                // Check for achievements
-                checkAchievements(data);
-            })
-            .catch(error => {
-                console.error('Error loading data:', error);
-                
-                if (retryCount < MAX_RETRIES) {
-                    // Retry after delay
-                    setTimeout(() => {
-                        loadData(startDate, endDate, viewType, retryCount + 1);
-                    }, RETRY_DELAY);
-                    return;
-                }
-
-                const errorMessage = document.createElement('div');
-                errorMessage.className = 'error-message';
-                errorMessage.innerHTML = `
-                    <div class="error-content">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <div>
-                            <h4>Oops! Something went wrong</h4>
-                            <p>${error.message || 'We couldn\'t load your data. Please check your connection and try again.'}</p>
-                            <div class="error-actions">
-                                <button class="btn btn-primary retry-btn">
-                                    <i class="fas fa-sync-alt"></i> Try Again
-                                </button>
-                                <button class="btn btn-outline-secondary refresh-btn">
-                                    <i class="fas fa-redo"></i> Refresh Page
-                                </button>
-                            </div>
-                        </div>
+function showError(message) {
+    const errorHtml = `
+        <div class="error-message">
+            <div class="error-content">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <h4>Error</h4>
+                    <p>${message}</p>
+                    <div class="error-actions">
+                        <button class="btn btn-primary retry-btn">
+                            <i class="fas fa-sync-alt"></i> Try Again
+                        </button>
                     </div>
-                `;
-                
-                const wrapper = document.querySelector('.analysis-wrapper');
-                wrapper.insertBefore(errorMessage, wrapper.firstChild);
-                
-                errorMessage.querySelector('.retry-btn').addEventListener('click', function() {
-                    errorMessage.remove();
-                    loadData(startDate, endDate, viewType);
-                });
+                </div>
+            </div>
+        </div>
+    `;
 
-                errorMessage.querySelector('.refresh-btn').addEventListener('click', function() {
-                    window.location.reload();
-                });
-            })
-            .finally(() => {
-                setLoading(document.getElementById('applyDateRange'), false);
-                document.querySelectorAll('.chart-container').forEach(container => {
-                    setChartLoading(container, false);
-                });
-            });
-    }
-
-    // Achievement checking function
-    function checkAchievements(data) {
-        const banner = document.getElementById('achievementBanner');
-        const message = document.querySelector('.achievement-message');
-        
-        // Hide banner initially
-        banner.style.display = 'none';
-        
-        // Check for achievements
-        if (data.totalAllocation > 0 && data.totalSpending < (data.totalAllocation * 0.9)) {
-            message.textContent = `Great job! You've stayed under budget by ₱${(data.totalAllocation - data.totalSpending).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-            banner.style.display = 'flex';
-        } else if (data.totalAllocation > 0 && data.dailyAverage < (data.totalAllocation / 30 * 0.8)) {
-            message.textContent = `Awesome! Your daily spending is 20% below average!`;
-            banner.style.display = 'flex';
-        }
-        
-        // Close banner event
-        document.querySelector('.close-banner').addEventListener('click', function() {
-            banner.style.display = 'none';
-        });
-    }
-
-    // Add preset range functionality
-    document.querySelectorAll('.range-preset').forEach(button => {
-        button.addEventListener('click', function() {
-            const days = parseInt(this.getAttribute('data-days'));
-            const endDate = new Date();
-            const startDate = new Date();
-            startDate.setDate(endDate.getDate() - days);
-            
-            document.getElementById('startDate').valueAsDate = startDate;
-            document.getElementById('endDate').valueAsDate = endDate;
-            
-            loadData(
-                startDate.toISOString().split('T')[0],
-                endDate.toISOString().split('T')[0]
-            );
-        });
+    // Remove any existing error messages
+    $('.error-message').remove();
+    
+    // Add new error message
+    $('.analysis-wrapper').prepend(errorHtml);
+    
+    // Add retry functionality
+    $('.retry-btn').click(function() {
+        $('.error-message').remove();
+        const startDate = $('#startDate').val();
+        const endDate = $('#endDate').val();
+        const viewType = $('.chart-filter-btn.active').data('type');
+        loadData(startDate, endDate, viewType);
     });
+}
 
-    // Apply date range event
-    document.getElementById('applyDateRange').addEventListener('click', function() {
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
+// Initialize charts when document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    
+    // Load initial data
+    const startDate = $('#startDate').val();
+    const endDate = $('#endDate').val();
+    loadData(startDate, endDate);
 
+    // Event listeners
+    $('#applyDateRange').click(function() {
+        const startDate = $('#startDate').val();
+        const endDate = $('#endDate').val();
+        
         if (!startDate || !endDate) {
-            alert('Please select both start and end dates');
+            showError('Please select both start and end dates');
             return;
         }
 
         const start = new Date(startDate);
         const end = new Date(endDate);
-        const diffInDays = (end - start) / (1000 * 60 * 60 * 24);
-
-        if (diffInDays > 365) {
-            alert('Date range cannot exceed 1 year');
+        
+        if (start > end) {
+            showError('Start date cannot be after end date');
             return;
         }
 
         loadData(startDate, endDate);
     });
 
-    // Chart filter buttons
-    document.querySelectorAll('.chart-filter-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            document.querySelectorAll('.chart-filter-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            this.classList.add('active');
-            
-            const viewType = this.getAttribute('data-type');
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            
-            loadData(startDate, endDate, viewType);
-        });
+    $('.range-preset').click(function() {
+        const days = $(this).data('days');
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+        
+        $('#startDate').val(startDate.toISOString().split('T')[0]);
+        $('#endDate').val(endDate.toISOString().split('T')[0]);
+        loadData(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]);
+    });
+
+    $('.chart-filter-btn').click(function() {
+        $('.chart-filter-btn').removeClass('active');
+        $(this).addClass('active');
+        const viewType = $(this).data('type');
+        const startDate = $('#startDate').val();
+        const endDate = $('#endDate').val();
+        loadData(startDate, endDate, viewType);
     });
 
     // Spending visibility toggle
-    document.getElementById('spendingToggle').addEventListener('change', function() {
+    $('#spendingToggle').change(function() {
         document.querySelector('.analysis-wrapper').classList.toggle('hide-spending', !this.checked);
         localStorage.setItem('spendingVisibility', this.checked);
     });
 
     // Load saved preference on page load
-    const spendingToggle = document.getElementById('spendingToggle');
+    const spendingToggle = $('#spendingToggle');
     const savedVisibility = localStorage.getItem('spendingVisibility');
     if (savedVisibility !== null) {
-        spendingToggle.checked = savedVisibility === 'true';
-        document.querySelector('.analysis-wrapper').classList.toggle('hide-spending', !spendingToggle.checked);
+        spendingToggle.prop('checked', savedVisibility === 'true');
+        document.querySelector('.analysis-wrapper').classList.toggle('hide-spending', !spendingToggle.prop('checked'));
     }
-
-    // Initial load
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
-    loadData(startDate, endDate);
 });
 </script>
 @endsection

@@ -9,88 +9,93 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Budget;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class AnalysisController extends Controller
 {
     public function index()
     {
-        // Default to last 30 days
-        $endDate = now();
-        $startDate = now()->subDays(30);
-        
-        // Get transactions for the period
-        $transactions = $this->getTransactions($startDate, $endDate);
-        
-        // Calculate metrics
-        $metrics = $this->calculateMetrics($transactions, $startDate, $endDate);
-        $categoryBreakdown = $this->getCategoryBreakdown($startDate, $endDate);
-        $trendData = $this->getTrendData($startDate, $endDate);
-        
-        // Fetch the budget amount for the current month
-        $currentMonth = now()->format('Y-m'); // Format: YYYY-MM
-        $budget = Budget::where('user_id', Auth::id())
-                        ->where('month', $currentMonth)
-                        ->first();
-
-        $budgetAmount = $budget ? $budget->amount_limit : 0; // Default to 0 if no budget is set
-
-        return view('pages.analysis', [
-            'totalSpending' => $metrics['totalSpending'],
-            'dailyAverage' => $metrics['dailyAverage'],
-            'categoryBreakdown' => $categoryBreakdown,
-            'trendDates' => array_keys($trendData),
-            'trendAmounts' => array_values($trendData),
-            'categoryNames' => collect($categoryBreakdown)->pluck('name')->toArray(),
-            'categoryAmounts' => collect($categoryBreakdown)->pluck('amount')->toArray(),
-            'budgetAmount' => $budgetAmount, // Pass the budget amount to the view
-        ]);
-    }
-
-    public function getDataByType($type)
-    {
         try {
-            $data = [];
+            // Default to last 30 days
+            $endDate = now();
+            $startDate = now()->subDays(30);
             
-            if ($type === 'weekly') {
-                $data = $this->getWeeklyData(request());
-            } elseif ($type === 'monthly') {
-                $data = $this->getMonthlyData(request());
-            }
+            // Get transactions for the period
+            $transactions = $this->getTransactions($startDate, $endDate);
             
-            // Always include category breakdown
-            $data['categoryNames'] = [];
-            $data['categoryAmounts'] = [];
+            // Calculate metrics
+            $metrics = $this->calculateMetrics($transactions, $startDate, $endDate);
+            $categoryBreakdown = $this->getCategoryBreakdown($startDate, $endDate);
+            $trendData = $this->getTrendData($startDate, $endDate);
             
-            return response()->json($data);
+            // Fetch the budget amount for the current month
+            $currentMonth = now()->format('Y-m');
+            $budget = Budget::where('user_id', Auth::id())
+                            ->where('month', $currentMonth)
+                            ->first();
+
+            $budgetAmount = $budget ? $budget->amount_limit : 0;
+
+            return view('pages.analysis', [
+                'totalSpending' => $metrics['totalSpending'],
+                'dailyAverage' => $metrics['dailyAverage'],
+                'categoryBreakdown' => $categoryBreakdown,
+                'trendDates' => array_keys($trendData),
+                'trendAmounts' => array_values($trendData),
+                'categoryNames' => collect($categoryBreakdown)->pluck('name')->toArray(),
+                'categoryAmounts' => collect($categoryBreakdown)->pluck('amount')->toArray(),
+                'budgetAmount' => $budgetAmount,
+            ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to load data',
-                'message' => $e->getMessage()
-            ], 500);
+            Log::error('Error in analysis index: ' . $e->getMessage());
+            return view('pages.analysis')->with('error', 'Failed to load analysis data. Please try again.');
         }
     }
 
-    public function customDateRangeData(Request $request)
+    public function getData(Request $request)
     {
         try {
             $startDate = Carbon::parse($request->input('start'));
             $endDate = Carbon::parse($request->input('end'));
             $viewType = $request->input('view', 'monthly');
 
-            // Validate date range (max 1 year)
+            // Validate date range
+            if ($startDate->isAfter($endDate)) {
+                return response()->json(['error' => 'Start date cannot be after end date'], 400);
+            }
+
             if ($startDate->diffInDays($endDate) > 365) {
                 return response()->json(['error' => 'Date range cannot exceed 1 year'], 400);
             }
 
-            // Create cache key based on parameters
+            // Create cache key
             $cacheKey = "analysis_data_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}_{$viewType}_" . Auth::id();
 
-            // Return cached data if available
             return response()->json(Cache::remember($cacheKey, now()->addMinutes(15), function () use ($startDate, $endDate, $viewType) {
                 $transactions = $this->getTransactions($startDate, $endDate);
+                
+                if ($transactions->isEmpty()) {
+                    return [
+                        'totalSpending' => 0,
+                        'dailyAverage' => 0,
+                        'categoryNames' => [],
+                        'categoryAmounts' => [],
+                        'trendDates' => [],
+                        'trendAmounts' => [],
+                        'budgetAmount' => 0,
+                        'message' => 'No data available for the selected period'
+                    ];
+                }
+
                 $metrics = $this->calculateMetrics($transactions, $startDate, $endDate);
                 $categoryBreakdown = $this->getCategoryBreakdown($startDate, $endDate);
-                $trendData = $this->getTrendData($startDate, $endDate);
+                $trendData = $this->getTrendData($startDate, $endDate, $viewType);
+
+                // Get budget amount
+                $currentMonth = now()->format('Y-m');
+                $budget = Budget::where('user_id', Auth::id())
+                                ->where('month', $currentMonth)
+                                ->first();
 
                 return [
                     'totalSpending' => $metrics['totalSpending'],
@@ -99,10 +104,15 @@ class AnalysisController extends Controller
                     'categoryAmounts' => collect($categoryBreakdown)->pluck('amount')->toArray(),
                     'trendDates' => array_keys($trendData),
                     'trendAmounts' => array_values($trendData),
+                    'budgetAmount' => $budget ? $budget->amount_limit : 0,
                 ];
             }));
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to load data', 'message' => $e->getMessage()], 500);
+            Log::error('Error in getData: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to load data',
+                'message' => 'An error occurred while processing your request'
+            ], 500);
         }
     }
 
@@ -110,8 +120,8 @@ class AnalysisController extends Controller
     {
         return Transaction::whereBetween('date', [$startDate, $endDate])
             ->where('user_id', Auth::id())
-            ->select('id', 'date', 'amount', 'category_id') // Only fetch required columns
-            ->with(['category:id,name']) // Eager load the category with specific columns
+            ->select('id', 'date', 'amount', 'category_id')
+            ->with(['category:id,name'])
             ->get();
     }
 
@@ -129,7 +139,7 @@ class AnalysisController extends Controller
 
     protected function getCategoryBreakdown($startDate, $endDate)
     {
-        $totalSpending = Transaction::whereBetween('date', [$startDate , $endDate])
+        $totalSpending = Transaction::whereBetween('date', [$startDate, $endDate])
             ->where('user_id', Auth::id())
             ->sum('amount');
 
@@ -150,13 +160,27 @@ class AnalysisController extends Controller
             ->toArray();
     }
 
-    protected function getTrendData($startDate, $endDate)
+    protected function getTrendData($startDate, $endDate, $viewType = 'monthly')
     {
-        $transactions = Transaction::whereBetween('date', [$startDate, $endDate])
-            ->where('user_id', Auth::id())
-            ->selectRaw('DATE(date) as date, SUM(amount) as total')
-            ->groupBy('date')
-            ->orderBy('date', 'asc')
+        $query = Transaction::whereBetween('date', [$startDate, $endDate])
+            ->where('user_id', Auth::id());
+
+        switch ($viewType) {
+            case 'daily':
+                $query->selectRaw('DATE(date) as date, SUM(amount) as total')
+                    ->groupBy('date');
+                break;
+            case 'weekly':
+                $query->selectRaw('YEARWEEK(date, 1) as week, MIN(date) as date, SUM(amount) as total')
+                    ->groupBy('week');
+                break;
+            case 'monthly':
+                $query->selectRaw('DATE_FORMAT(date, "%Y-%m") as date, SUM(amount) as total')
+                    ->groupBy('date');
+                break;
+        }
+
+        $transactions = $query->orderBy('date', 'asc')
             ->get()
             ->pluck('total', 'date');
 
@@ -165,36 +189,22 @@ class AnalysisController extends Controller
         $currentDate = clone $startDate;
 
         while ($currentDate <= $endDate) {
-            $dateString = $currentDate->format('Y-m-d');
+            $dateString = $currentDate->format($viewType === 'monthly' ? 'Y-m' : 'Y-m-d');
             $trendData[$dateString] = $transactions[$dateString] ?? 0;
-            $currentDate->addDay();
+            
+            switch ($viewType) {
+                case 'daily':
+                    $currentDate->addDay();
+                    break;
+                case 'weekly':
+                    $currentDate->addWeek();
+                    break;
+                case 'monthly':
+                    $currentDate->addMonth();
+                    break;
+            }
         }
 
         return $trendData;
-    }
-
-    public function getWeeklyData(Request $request)
-    {
-        $data = Transaction::where('user_id', Auth::id())
-            ->selectRaw('YEARWEEK(date, 1) as week, MIN(date) as first_date, MAX(date) as last_date, SUM(amount) as total')
-            ->groupBy('week')
-            ->orderBy('week', 'desc')
-            ->amount_limit(8)
-            ->get();
-
-        $labels = [];
-        $values = [];
-        
-        foreach ($data as $item) {
-            $start = Carbon::parse($item->first_date)->format('M j');
-            $end = Carbon::parse($item->last_date)->format('M j, Y');
-            $labels[] = "Week of $start - $end";
-            $values[] = $item->total;
-        }
-
-        return [
-            'weeklyLabels' => $labels,
-            'weeklyValues' => $values,
-        ];
     }
 }

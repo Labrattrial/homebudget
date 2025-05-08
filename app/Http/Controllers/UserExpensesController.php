@@ -18,13 +18,15 @@ class UserExpensesController extends Controller
         $month = $request->get('month', now()->format('Y-m'));
         
         $expenses = Transaction::where('user_id', Auth::id())
+            ->where('type', 'expense')
             ->where('date', 'like', "$month%")
             ->with('category')
             ->orderBy('date', 'desc')
             ->get();
 
         // Fetch distinct specs (stored in the 'description' column)
-        $specs = Transaction::distinct('description')
+        $specs = Transaction::where('type', 'expense')
+            ->distinct('description')
             ->whereNotNull('description')
             ->pluck('description');
 
@@ -52,9 +54,12 @@ class UserExpensesController extends Controller
     public function getDescriptionsByCategory($categoryId)
     {
         $specs = Transaction::where('category_id', $categoryId)
-            ->distinct('description')
-            ->whereNotNull('description')
-            ->pluck('description');
+            ->where('type', 'expense')
+            ->where('user_id', Auth::id())
+            ->distinct()
+            ->pluck('description')
+            ->filter()
+            ->values();
 
         return response()->json(['specs' => $specs]);
     }
@@ -68,27 +73,48 @@ class UserExpensesController extends Controller
             'category_id' => 'required|exists:categories,id',
             'amount' => 'required|numeric|min:0.01',
             'date' => 'required|date',
-            'specs_option' => 'required|in:existing,new',
-            'description' => 'required_if:specs_option,existing|max:255',
-            'new_specs' => 'required_if:specs_option,new|max:255',
+            'specs_option' => 'nullable|in:existing,new',
+            'description' => 'nullable|max:255',
+            'new_specs' => 'nullable|max:255',
         ]);
 
-        // Determine the specs (existing or new)
-        $description = $validated['specs_option'] === 'new'
-            ? $validated['new_specs']
-            : $validated['description'];
+        // Determine the description based on the option selected
+        $description = null;
+        if ($request->has('specs_option')) {
+            $description = $validated['specs_option'] === 'new'
+                ? $validated['new_specs']
+                : $validated['description'];
+        }
 
         $expense = Transaction::create([
             'user_id' => Auth::id(),
             'category_id' => $validated['category_id'],
             'amount' => $validated['amount'],
             'date' => $validated['date'],
-            'description' => $description, // Save the specs in 'description'
+            'description' => $description,
+            'type' => 'expense'
         ]);
+
+        // Get updated totals and category breakdown
+        $month = now()->format('Y-m');
+        $expenses = Transaction::where('user_id', Auth::id())
+            ->where('type', 'expense')
+            ->where('date', 'like', "$month%")
+            ->get();
+
+        $categories = Category::all();
+        $categoryBreakdown = $categories->map(function($category) use ($expenses) {
+            return [
+                'name' => $category->name,
+                'total' => $expenses->where('category_id', $category->id)->sum('amount')
+            ];
+        });
 
         return response()->json([
             'success' => true,
-            'expense' => $expense->load('category'), // Return the created expense with category
+            'expense' => $expense->load('category'),
+            'totalExpenses' => $expenses->sum('amount'),
+            'categoryBreakdown' => $categoryBreakdown
         ]);
     }
 
@@ -101,15 +127,18 @@ class UserExpensesController extends Controller
             'category_id' => 'required|exists:categories,id',
             'amount' => 'required|numeric|min:0.01',
             'date' => 'required|date',
-            'specs_option' => 'required|in:existing,new',
-            'description' => 'required_if:specs_option,existing|max:255',
-            'new_specs' => 'required_if:specs_option,new|max:255',
+            'specs_option' => 'nullable|in:existing,new',
+            'description' => 'nullable|max:255',
+            'new_specs' => 'nullable|max:255',
         ]);
 
-        // Determine the specs (existing or new)
-        $description = $validated['specs_option'] === 'new'
-            ? $validated['new_specs']
-            : $validated['description'];
+        // Determine the description based on the option selected
+        $description = null;
+        if ($request->has('specs_option')) {
+            $description = $validated['specs_option'] === 'new'
+                ? $validated['new_specs']
+                : $validated['description'];
+        }
 
         $transaction = $this->getUserTransaction($id);
         $transaction->update([
@@ -117,11 +146,12 @@ class UserExpensesController extends Controller
             'amount' => $validated['amount'],
             'date' => $validated['date'],
             'description' => $description,
+            'type' => 'expense'
         ]);
 
         return response()->json([
             'success' => true,
-            'expense' => $transaction->load('category'), // Return the updated expense with category
+            'expense' => $transaction->load('category'),
         ]);
     }
 

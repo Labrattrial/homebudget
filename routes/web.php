@@ -41,6 +41,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [UserExpensesController::class, 'store'])->name('user.expenses.store');
         Route::put('/{id}', [UserExpensesController::class, 'update']);
         Route::delete('/{id}', [UserExpensesController::class, 'destroy']);
+        Route::get('/categories/{category}/descriptions', [UserExpensesController::class, 'getDescriptionsByCategory'])->name('user.expenses.descriptions');
     });
 
     
