@@ -7,6 +7,7 @@ use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Budget;
 
 class AnalysisController extends Controller
 {
@@ -24,21 +25,23 @@ class AnalysisController extends Controller
         $categoryBreakdown = $this->getCategoryBreakdown($startDate, $endDate);
         $trendData = $this->getTrendData($startDate, $endDate);
         
-        // Get top category
-        $topCategory = collect($categoryBreakdown)->sortByDesc('amount')->first();
-        
+        // Fetch the budget amount for the current month
+        $currentMonth = now()->format('Y-m'); // Format: YYYY-MM
+        $budget = Budget::where('user_id', Auth::id())
+                        ->where('month', $currentMonth)
+                        ->first();
+
+        $budgetAmount = $budget ? $budget->amount_limit : 0; // Default to 0 if no budget is set
+
         return view('pages.analysis', [
             'totalSpending' => $metrics['totalSpending'],
             'dailyAverage' => $metrics['dailyAverage'],
-            'topCategory' => $topCategory['name'] ?? 'N/A',
-            'topCategoryAmount' => $topCategory['amount'] ?? 0,
             'categoryBreakdown' => $categoryBreakdown,
             'trendDates' => array_keys($trendData),
             'trendAmounts' => array_values($trendData),
             'categoryNames' => collect($categoryBreakdown)->pluck('name')->toArray(),
             'categoryAmounts' => collect($categoryBreakdown)->pluck('amount')->toArray(),
-            'startDate' => $startDate->format('Y-m-d'),
-            'endDate' => $endDate->format('Y-m-d'),
+            'budgetAmount' => $budgetAmount, // Pass the budget amount to the view
         ]);
     }
 
@@ -67,112 +70,34 @@ class AnalysisController extends Controller
     }
 
     public function customDateRangeData(Request $request)
-{
-    try {
-        $startDate = Carbon::parse($request->input('start'));
-        $endDate = Carbon::parse($request->input('end'));
+    {
+        try {
+            $startDate = Carbon::parse($request->input('start'));
+            $endDate = Carbon::parse($request->input('end'));
 
-        // Validate date range (max 1 year)
-        if ($startDate->diffInDays($endDate) > 365) {
+            // Validate date range (max 1 year)
+            if ($startDate->diffInDays($endDate) > 365) {
+                return response()->json(['error' => 'Date range cannot exceed 1 year'], 400);
+            }
+
+            // Fetch and process data...
+            $transactions = $this->getTransactions($startDate, $endDate);
+            $metrics = $this->calculateMetrics($transactions, $startDate, $endDate);
+            $categoryBreakdown = $this->getCategoryBreakdown($startDate, $endDate);
+            $trendData = $this->getTrendData($startDate, $endDate);
+
             return response()->json([
-                'error' => 'Date range cannot exceed 1 year'
-            ], 400);
+                'totalSpending' => $metrics['totalSpending'],
+                'dailyAverage' => $metrics['dailyAverage'],
+                'categoryNames' => collect($categoryBreakdown)->pluck('name')->toArray(),
+                'categoryAmounts' => collect($categoryBreakdown)->pluck('amount')->toArray(),
+                'trendDates' => array_keys($trendData),
+                'trendAmounts' => array_values($trendData),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Invalid date range', 'message' => $e->getMessage()], 400);
         }
-
-        // Fetch and process data...
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Invalid date range',
-            'message' => $e->getMessage()
-        ], 400);
     }
-}
-
-    protected function getWeeklyDataForRange($startDate, $endDate)
-    {
-        $data = Transaction::where('user_id', Auth::id())
-            ->whereBetween('date', [$startDate, $endDate])
-            ->selectRaw('YEARWEEK(date, 1) as week, 
-                        MIN(date) as first_date, 
-                        MAX(date) as last_date, 
-                        SUM(amount) as total')
-            ->groupBy('week')
-            ->orderBy('week', 'desc')
-            ->get();
-    
-        $labels = [];
-        $values = [];
-        
-        foreach ($data as $item) {
-            $start = Carbon::parse($item->first_date)->format('M j');
-            $end = Carbon::parse($item->last_date)->format('M j, Y');
-            $labels[] = "Week of $start - $end";
-            $values[] = $item->total;
-        }
-    
-        return [
-            'labels' => $labels,
-            'values' => $values,
-        ];
-    }
-
-    protected function getMonthlyDataForRange($startDate, $endDate)
-    {
-        $data = Transaction::where('user_id', Auth::id())
-            ->whereBetween('date', [$startDate, $endDate])
-            ->selectRaw('DATE_FORMAT(date, "%Y-%m") as month, 
-                        MIN(date) as first_date, 
-                        MAX(date) as last_date, 
-                        SUM(amount) as total')
-            ->groupBy('month')
-            ->orderBy('month', 'desc')
-            ->get();
-    
-        $labels = [];
-        $values = [];
-        
-        foreach ($data as $item) {
-            $start = Carbon::parse($item->first_date)->format('M j, Y');
-            $end = Carbon::parse($item->last_date)->format('M j, Y');
-            $labels[] = "$start to $end";
-            $values[] = $item->total;
-        }
-    
-        return [
-            'labels' => $labels,
-            'values' => $values,
-        ];
-    }
-    
-
-
-    public function getMonthlyData(Request $request)
-{
-    $data = Transaction::where('user_id', Auth::id())
-        ->selectRaw('DATE_FORMAT(date, "%Y-%m") as month, 
-                    MIN(date) as first_date, 
-                    MAX(date) as last_date, 
-                    SUM(amount) as total')
-        ->groupBy('month')
-        ->orderBy('month', 'desc')
-        ->limit(6)
-        ->get();
-
-    $labels = [];
-    $values = [];
-    
-    foreach ($data as $item) {
-        $start = Carbon::parse($item->first_date)->format('M j, Y');
-        $end = Carbon::parse($item->last_date)->format('M j, Y');
-        $labels[] = "$start to $end";
-        $values[] = $item->total;
-    }
-
-    return [
-        'monthlyLabels' => $labels,
-        'monthlyValues' => $values,
-    ];
-}
 
     protected function getTransactions($startDate, $endDate)
     {
@@ -196,73 +121,73 @@ class AnalysisController extends Controller
     }
 
     protected function getCategoryBreakdown($startDate, $endDate)
-{
-    $totalSpending = Transaction::whereBetween('date', [$startDate, $endDate])
-        ->where('user_id', Auth::id())
-        ->sum('amount');
+    {
+        $totalSpending = Transaction::whereBetween('date', [$startDate , $endDate])
+            ->where('user_id', Auth::id())
+            ->sum('amount');
 
-    return Category::join('transactions', 'categories.id', '=', 'transactions.category_id')
-        ->whereBetween('transactions.date', [$startDate, $endDate])
-        ->where('transactions.user_id', Auth::id())
-        ->selectRaw('categories.name, SUM(transactions.amount) as amount')
-        ->groupBy('categories.name')
-        ->orderByDesc('amount')
-        ->get()
-        ->map(function ($category) use ($totalSpending) {
-            return [
-                'name' => $category->name,
-                'amount' => $category->amount,
-                'percentage' => $totalSpending > 0 ? round(($category->amount / $totalSpending) * 100, 1) : 0,
-            ];
-        })
-        ->toArray();
-}
+        return Category::join('transactions', 'categories.id', '=', 'transactions.category_id')
+            ->whereBetween('transactions.date', [$startDate, $endDate])
+            ->where('transactions.user_id', Auth::id())
+            ->selectRaw('categories.name, SUM(transactions.amount) as amount')
+            ->groupBy('categories.name')
+            ->orderByDesc('amount')
+            ->get()
+            ->map(function ($category) use ($totalSpending) {
+                return [
+                    'name' => $category->name,
+                    'amount' => $category->amount,
+                    'percentage' => $totalSpending > 0 ? round(($category->amount / $totalSpending) * 100, 1) : 0,
+                ];
+            })
+            ->toArray();
+    }
 
     protected function getTrendData($startDate, $endDate)
-{
-    $transactions = Transaction::whereBetween('date', [$startDate, $endDate])
-        ->where('user_id', Auth::id())
-        ->selectRaw('DATE(date) as date, SUM(amount) as total')
-        ->groupBy('date')
-        ->orderBy('date', 'asc')
-        ->get()
-        ->pluck('total', 'date'); // Use pluck for better performance
+    {
+        $transactions = Transaction::whereBetween('date', [$startDate, $endDate])
+            ->where('user_id', Auth::id())
+            ->selectRaw('DATE(date) as date, SUM(amount) as total')
+            ->groupBy('date')
+            ->orderBy('date', 'asc')
+            ->get()
+            ->pluck('total', 'date');
 
-    // Fill missing dates with 0
-    $trendData = [];
-    $currentDate = clone $startDate;
+        // Fill missing dates with 0
+        $trendData = [];
+        $currentDate = clone $startDate;
 
-    while ($currentDate <= $endDate) {
-        $dateString = $currentDate->format('M j, Y');
-        $trendData[$dateString] = $transactions[$currentDate->format('Y-m-d')] ?? 0;
-        $currentDate->addDay();
+        while ($currentDate <= $endDate) {
+            $dateString = $currentDate->format('Y-m-d');
+            $trendData[$dateString] = $transactions[$dateString] ?? 0;
+            $currentDate->addDay();
+        }
+
+        return $trendData;
     }
 
-    return $trendData;
-}
+    public function getWeeklyData(Request $request)
+    {
+        $data = Transaction::where('user_id', Auth::id())
+            ->selectRaw('YEARWEEK(date, 1) as week, MIN(date) as first_date, MAX(date) as last_date, SUM(amount) as total')
+            ->groupBy('week')
+            ->orderBy('week', 'desc')
+            ->amount_limit(8)
+            ->get();
 
-public function getWeeklyData(Request $request)
-{
-    $data = Transaction::where('user_id', Auth::id())
-        ->selectRaw('YEARWEEK(date, 1) as week, MIN(date) as first_date, MAX(date) as last_date, SUM(amount) as total')
-        ->groupBy('week')
-        ->orderBy('week', 'desc')
-        ->limit(8)
-        ->get();
+        $labels = [];
+        $values = [];
+        
+        foreach ($data as $item) {
+            $start = Carbon::parse($item->first_date)->format('M j');
+            $end = Carbon::parse($item->last_date)->format('M j, Y');
+            $labels[] = "Week of $start - $end";
+            $values[] = $item->total;
+        }
 
-    $labels = [];
-    $values = [];
-    
-    foreach ($data as $item) {
-        $start = Carbon::parse($item->first_date)->format('M j');
-        $end = Carbon::parse($item->last_date)->format('M j, Y');
-        $labels[] = "Week of $start - $end";
-        $values[] = $item->total;
+        return [
+            'weeklyLabels' => $labels,
+            'weeklyValues' => $values,
+        ];
     }
-
-    return [
-        'weeklyLabels' => $labels,
-        'weeklyValues' => $values,
-    ];
-}
 }

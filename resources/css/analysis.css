@@ -96,6 +96,21 @@
     color: var(--primary);
 }
 
+/* Make date range fields side by side */
+.date-range-fields {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Each form group in date range */
+.date-range-fields .form-group {
+    flex: 1 1 150px;
+    min-width: 150px;
+    margin-bottom: 0; /* remove bottom margin to align horizontally */
+}
+
 .form-group {
     margin-bottom: 1rem;
 }
@@ -599,4 +614,204 @@ canvas {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Add to your analysis.css */
+.preferences-bar {
+    margin-bottom: 20px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.spending-visibility {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.preference-label {
+    font-size: 14px;
+    color: #495057;
+}
+
+/* Switch styling */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: #28a745;
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+.slider.round {
+    border-radius: 24px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+/* Hide spending amounts when toggle is off */
+.hide-spending .amount,
+.hide-spending #totalSpending,
+.hide-spending #dailyAverage,
+.hide-spending #totalSpendingCard,
+.hide-spending #dailyAverageCard {
+    filter: blur(5px);
+    user-select: none;
+    pointer-events: none;
+}
+
+/* Add to your CSS */
+.achievement-banner {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    animation: slideIn 0.5s ease-out;
+}
+
+.achievement-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.achievement-icon {
+    font-size: 24px;
+}
+
+.close-banner {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Add to your CSS */
+.progress-container {
+    width: 100%;
+    margin: 10px 0;
+}
+
+.progress-bar {
+    height: 10px;
+    background-color: #e9ecef;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.5s ease;
+}
+
+.progress-text {
+    display: block;
+    font-size: 14px;
+    margin-top: 5px;
+    text-align: center;
+}
+
+/* Add to your CSS */
+.error-message {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.error-content {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+}
+
+.error-content i {
+    color: #ffc107;
+    font-size: 24px;
+    margin-top: 3px;
+}
+
+.error-content h4 {
+    margin: 0 0 5px 0;
+    color: #856404;
+}
+
+.error-content p {
+    margin: 0 0 10px 0;
+    color: #856404;
+}
+
+.retry-btn {
+    background: #ffc107;
+    border-color: #ffc107;
+    color: #343a40;
+}
+
+/* Ensure focus states are visible */
+button:focus, input:focus, .range-preset:focus {
+    outline: 2px solid #4D90FE;
+    outline-offset: 2px;
+}
+
+/* Improve contrast for accessibility */
+.summary-card h3, .chart-container h2 {
+    color: #212529;
+}
+
+.preference-label {
+    color: #343a40;
 }

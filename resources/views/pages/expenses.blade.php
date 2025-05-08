@@ -4,16 +4,25 @@
 @vite(['resources/css/expenses.css', 'resources/js/fontawesome.js'])
 
 <div class="expenses-wrapper">
-  <!-- Header with just the title and add button -->
+  <!-- Header with title, filter, search bar, and add button -->
   <div class="expenses-header">
     <h2>Recent Expenses</h2>
-    <div class="add-btn" onclick="openModal()">+</div>
+    <div class="header-actions">
+      <input type="text" id="searchInput" placeholder="Search by description or category" oninput="searchExpenses()" />
+      <select id="categoryFilter" onchange="filterExpenses(this.value)">
+        <option value="">All Categories</option>
+        @foreach($categories as $category)
+          <option value="{{ $category->id }}">{{ $category->name }}</option>
+        @endforeach
+      </select>
+      <div class="add-btn" onclick="openModal()">+</div>
+    </div>
   </div>
 
   <!-- Expense Cards -->
   <div class="expenses-grid" id="recentExpensesGrid">
     @foreach ($expenses as $expense)
-      <div class="expense-card" data-id="{{ $expense->id }}">
+      <div class="expense-card" data-id="{{ $expense->id }}" data-category="{{ $expense->category_id }}">
         <div class="expense-icons">
           <i class="fas fa-edit edit-icon" onclick="editCard(this)" title="Edit" data-id="{{ $expense->id }}"></i>
           <i class="fas fa-trash delete-icon" onclick="deleteCard(this)" title="Delete" data-id="{{ $expense->id }}"></i>
@@ -42,6 +51,7 @@
             @endforeach
           </select>
         </div>
+        <div class="error-message" id="error-category_id"></div>
 
         <label>Specs:</label>
         <div class="specs-options">
@@ -61,17 +71,21 @@
               @endforeach
             </select>
           </div>
+          <div class="error-message" id="error-description"></div>
         </div>
 
         <div id="newSpecsContainer" style="display: none;">
           <input type="text" id="newSpecsInput" name="new_specs" placeholder="Enter new specs" />
+          <div class="error-message" id="error-new_specs"></div>
         </div>
 
         <label for="modalAmount">Total Expense:</label>
         <input type="number" name="amount" id="modalAmount" required placeholder="Enter amount" />
+        <div class="error-message" id="error-amount"></div>
 
         <label for="modalDate">Date:</label>
         <input type="date" name="date" id="modalDate" required />
+        <div class="error-message" id="error-date"></div>
 
         <button type="submit" class="save-btn" id="submitButton">
           <span id="buttonText">Save</span>
@@ -98,7 +112,6 @@
     if (loadingOverlay) loadingOverlay.remove();
   }
 
-  // Fetch specs (descriptions) for the selected category
   function fetchSpecsByCategory(categoryId) {
     fetch(`/categories/${categoryId}/descriptions`, {
       headers: { 'Accept': 'application/json' },
@@ -188,6 +201,7 @@
     }
 
     const url = editingId ? `/expenses/${editingId}` : "{{ route('user.expenses.store') }}";
+   
 
     toggleLoading(true);
     fetch(url, {
@@ -203,9 +217,10 @@
         if (data.success) {
           showConfirmationMessage('Expense saved successfully!', true);
           closeModal();
-          location.reload(); // Reload the page to reflect changes
+          const newExpenseCard = createExpenseCard(data.expense);
+          document.getElementById('recentExpensesGrid').prepend(newExpenseCard);
         } else {
-          showConfirmationMessage(data.message || 'Failed to save expense.', false);
+          showValidationErrors(data.errors);
         }
       })
       .catch(error => {
@@ -217,7 +232,59 @@
         hidePageLoading(); // Hide loading overlay
       });
   };
-  
+
+  function createExpenseCard(expense) {
+    const card = document.createElement('div');
+    card.className = 'expense-card';
+    card.setAttribute('data-id', expense.id);
+    card.setAttribute('data-category', expense.category_id);
+    card.innerHTML = `
+      <div class="expense-icons">
+        <i class="fas fa-edit edit-icon" onclick="editCard(this)" title="Edit" data-id="${expense.id}"></i>
+        <i class="fas fa-trash delete-icon" onclick="deleteCard(this)" title="Delete" data-id="${expense.id}"></i>
+      </div>
+      <p><strong>Category:</strong> <span class="category">${expense.category.name}</span></p>
+      <p><strong>Specs:</strong> <span class="specs">${expense.description}</span></p>
+      <p><strong>Total Expense:</strong> <span class="amount">₱${parseFloat(expense.amount).toFixed(2)}</span></p>
+      <p><strong>Date:</strong> <span class="date">${expense.date}</span></p>
+    `;
+    return card;
+  }
+
+  function showValidationErrors(errors) {
+    Object.keys(errors).forEach(key => {
+      const errorElement = document.getElementById(`error-${key}`);
+      if (errorElement) {
+        errorElement.textContent = errors[key][0]; // Show the first error message
+      }
+    });
+  }
+
+  function filterExpenses(categoryId) {
+    const cards = document.querySelectorAll('.expense-card');
+    cards.forEach(card => {
+      if (categoryId === "" || card.getAttribute('data-category') === categoryId) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  function searchExpenses() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const cards = document.querySelectorAll('.expense-card');
+    cards.forEach(card => {
+      const description = card.querySelector('.specs').textContent.toLowerCase();
+      const category = card.querySelector('.category').textContent.toLowerCase();
+      if (description.includes(searchTerm) || category.includes(searchTerm)) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
   function deleteCard(button) {
     if (isLoading) return;
 
@@ -237,7 +304,6 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          // Remove the card from the grid dynamically
           document.querySelector(`.expense-card[data-id="${id}"]`)?.remove();
           showConfirmationMessage('Expense deleted successfully!', true);
         } else {
@@ -252,6 +318,5 @@
         hidePageLoading(); // Hide loading overlay
       });
   }
-
 </script>
 @endsection

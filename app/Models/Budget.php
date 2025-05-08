@@ -13,7 +13,7 @@ class Budget extends Model
         'user_id',
         'category_id',
         'month',
-        'amount'
+        'amount_limit'
     ];
 
     public function user()

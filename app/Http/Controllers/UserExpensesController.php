@@ -70,7 +70,7 @@ class UserExpensesController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $expense->load('category'),
+            'expense' => $expense->load('category'), // Return the created expense with category
         ]);
     }
 
@@ -103,7 +103,7 @@ class UserExpensesController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $transaction->load('category'),
+            'expense' => $transaction->load('category'), // Return the updated expense with category
         ]);
     }
 
@@ -126,7 +126,7 @@ class UserExpensesController extends Controller
      */
     private function getUserTransaction($id)
     {
-        $transaction = Transaction::with('category')->findOrFail($id);
+        $transaction = Transaction::with ('category')->findOrFail($id);
 
         if ($transaction->user_id !== Auth::id()) {
             abort(403, 'Unauthorized action.');

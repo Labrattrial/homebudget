@@ -10,16 +10,20 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-    {
-        Schema::create('budgets', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('category_id')->constrained()->onDelete('cascade');
-            $table->decimal('limit', 10, 2);
-            $table->string('month'); // Format: YYYY-MM
-            $table->timestamps();
-        });
-    }
+{
+    Schema::create('budgets', function (Blueprint $table) {
+        $table->id();
+        $table->foreignId('user_id')->constrained();
+        $table->foreignId('category_id')->nullable()->constrained(); // Make category_id nullable
+        $table->decimal('amount_limit', 10, 2); // This must NOT be nullable
+        $table->string('month', 7); // Format: YYYY-MM
+        $table->timestamps();
+        
+        $table->unique(['user_id', 'category_id', 'month']);
+    });
+}
+
+    
 
 
     /**

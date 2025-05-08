@@ -31,38 +31,49 @@
         <h2 class="profile-header">Profile Settings</h2>
 
         {{-- Profile Picture Form --}}
-        <form action="{{ route('settings.profile.update') }}" method="POST" enctype="multipart/form-data" id="profileForm">
-            @csrf
-            <!-- Update the profile picture section in your blade file -->
-            <div class="profile-picture-container">
-                <label for="profile_picture" class="profile-picture-label">
-                    <div class="profile-picture-wrapper">
-                        @if(Auth::user()->profile_picture)
-                            <img src="{{ Auth::user()->profile_picture }}" 
-                                alt="Profile Picture" 
-                                class="profile-picture"
-                                id="currentProfilePicture">
-                        @else
-                            <i class="fas fa-user-circle profile-picture-icon" id="profileIcon"></i>
-                        @endif
-                        <div class="profile-picture-preview" id="profilePicturePreview" style="display: none;"></div>
-                        <div class="profile-picture-loading" id="profilePictureLoading" style="display: none;">
-                            <i class="fas fa-spinner fa-spin"></i>
-                        </div>
-                    </div>
-                    <p class="profile-picture-text">Tap to change profile picture</p>
-                </label>
-                <input type="file" name="profile_picture" id="profile_picture" style="display: none;" accept="image/*">
+<form id="profileForm" enctype="multipart/form-data">
+    @csrf
+    <div class="profile-picture-container">
+        <label for="profile_picture" class="profile-picture-label">
+            <div class="profile-picture-wrapper">
+                @if(Auth::user()->profile_picture)
+                    <img src="{{ Auth::user()->profile_picture }}" 
+                        alt="Profile Picture" 
+                        class="profile-picture"
+                        id="currentProfilePicture">
+                @else
+                    <i class="fas fa-user-circle profile-picture-icon" id="profileIcon"></i>
+                @endif
+                <div class="profile-picture-preview" id="profilePicturePreview" style="display: none;"></div>
+                <div class="profile-picture-loading" id="profilePictureLoading" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
             </div>
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary" id="profileSubmitBtn">
-                    <span class="btn-text">Update Profile Picture</span>
-                    <span class="btn-spinner" style="display: none;">
-                        <i class="fas fa-spinner fa-spin"></i>
-                    </span>
-                </button>
-            </div>
-        </form>
+            <p class="profile-picture-text">Tap to change profile picture</p>
+        </label>
+        <input type="file" name="profile_picture" id="profile_picture" style="display: none;" accept="image/*">
+        
+        <!-- Move the action buttons inside the container -->
+        <div class="profile-picture-actions" id="profilePictureActions" style="display: none;">
+            <button type="button" class="btn btn-light" id="cancelProfileUpdate">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button type="button" class="btn btn-primary" id="confirmProfileUpdate">
+                <i class="fas fa-check"></i> Confirm
+            </button>
+        </div>
+    </div>
+    
+    <!-- Keep the submit button but hide it initially -->
+    <div class="form-actions" id="profileFormSubmit" style="display: none;">
+        <button type="submit" class="btn btn-primary" id="profileSubmitBtn">
+            <span class="btn-text">Update Profile Picture</span>
+            <span class="btn-spinner" style="display: none;">
+                <i class="fas fa-spinner fa-spin"></i>
+            </span>
+        </button>
+    </div>
+</form>
 
         <div class="divider"></div>
 
@@ -244,7 +255,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Loading State Management
     function setLoadingState(formId, isLoading) {
         const form = document.getElementById(formId);
+        if (!form) return;
+        
         const submitBtn = form.querySelector('button[type="submit"]');
+        if (!submitBtn) return;
+        
         const btnText = submitBtn.querySelector('.btn-text');
         const btnSpinner = submitBtn.querySelector('.btn-spinner');
         const overlay = document.getElementById('loadingOverlay');
@@ -271,16 +286,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const confirmBtn = document.getElementById('dialogConfirm');
             const cancelBtn = document.getElementById('dialogCancel');
 
-            // Set dialog content
             title.textContent = options.title || 'Confirm Action';
             message.textContent = options.message || 'Are you sure you want to perform this action?';
             confirmBtn.textContent = options.confirmText || 'Confirm';
             cancelBtn.textContent = options.cancelText || 'Cancel';
 
-            // Show dialog
             dialog.style.display = 'flex';
 
-            // Event handlers
             function handleConfirm() {
                 dialog.style.display = 'none';
                 resolve(true);
@@ -333,19 +345,125 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Form submission - Profile Form
-    document.getElementById('profileForm')?.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const confirmed = await showConfirmation({
-            title: 'Update Profile Picture',
-            message: 'Are you sure you want to update your profile picture?'
+    // Profile Picture Elements
+    const profileInput = document.getElementById('profile_picture');
+    const previewContainer = document.getElementById('profilePicturePreview');
+    const currentPicture = document.getElementById('currentProfilePicture');
+    const profileIcon = document.getElementById('profileIcon');
+    const loadingIndicator = document.getElementById('profilePictureLoading');
+    const profileActions = document.getElementById('profilePictureActions');
+    const cancelBtn = document.getElementById('cancelProfileUpdate');
+    const confirmBtn = document.getElementById('confirmProfileUpdate');
+    const profileFormSubmit = document.getElementById('profileFormSubmit');
+    
+    let selectedFile = null;
+
+    // Profile Picture Change Handler
+    if (profileInput) {
+        profileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            selectedFile = file;
+            loadingIndicator.style.display = 'block';
+            
+            if (currentPicture) currentPicture.style.display = 'none';
+            if (profileIcon) profileIcon.style.display = 'none';
+            previewContainer.style.display = 'none';
+            if (profileActions) profileActions.style.display = 'none';
+            if (profileFormSubmit) profileFormSubmit.style.display = 'none';
+
+            if (!file.type.match('image.*')) {
+                showToast('Please select a valid image file', 'error');
+                resetProfilePictureDisplay();
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewContainer.innerHTML = `<img src="${e.target.result}" alt="Preview" class="profile-picture">`;
+                previewContainer.style.display = 'block';
+                loadingIndicator.style.display = 'none';
+                if (profileActions) profileActions.style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
         });
-        
-        if (confirmed) {
+    }
+
+    // Cancel Profile Update
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            resetProfilePictureDisplay();
+            if (profileInput) profileInput.value = '';
+        });
+    }
+
+    // Confirm Profile Update
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async function() {
+            if (!selectedFile) return;
+
             setLoadingState('profileForm', true);
-            this.submit();
+            
+            try {
+                const formData = new FormData();
+                formData.append('profile_picture', selectedFile);
+                formData.append('_token', '{{ csrf_token() }}');
+
+                const response = await fetch('{{ route('settings.profile.update') }}', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                setLoadingState('profileForm', false);
+
+                if (result.success) {
+                    showToast(result.message, 'success');
+                    updateAllProfilePictures(result.newProfilePictureUrl);
+                    resetProfilePictureDisplay(true, result.newProfilePictureUrl);
+                } else {
+                    showToast(result.message, 'error');
+                    resetProfilePictureDisplay();
+                }
+            } catch (error) {
+                setLoadingState('profileForm', false);
+                showToast('An error occurred while updating your profile picture', 'error');
+                resetProfilePictureDisplay();
+            }
+        });
+    }
+
+    // Reset Profile Picture Display
+    function resetProfilePictureDisplay(keepChanges = false, newUrl = null) {
+        if (loadingIndicator) loadingIndicator.style.display = 'none';
+        if (profileActions) profileActions.style.display = 'none';
+        if (profileFormSubmit) profileFormSubmit.style.display = 'none';
+        
+        if (keepChanges && newUrl) {
+            if (previewContainer) previewContainer.style.display = 'none';
+            if (currentPicture) {
+                currentPicture.src = newUrl;
+                currentPicture.style.display = 'block';
+            }
+            if (profileIcon) profileIcon.style.display = 'none';
+        } else {
+            if (previewContainer) previewContainer.style.display = 'none';
+            if (currentPicture) currentPicture.style.display = 'block';
+            if (profileIcon) profileIcon.style.display = 'block';
         }
+    }
+
+    // Update all profile pictures on the page
+    function updateAllProfilePictures(newUrl) {
+        document.querySelectorAll('.profile-picture, .user-avatar').forEach(img => {
+            img.src = newUrl;
+        });
+    }
+
+    // Prevent default form submission for profile form
+    document.getElementById('profileForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
     });
 
     // Show any server-side messages
@@ -356,44 +474,5 @@ document.addEventListener('DOMContentLoaded', function() {
         showToast(serverMessages.error, 'error');
     }
 });
-
-function handleProfilePicturePreview() {
-    const profileInput = document.getElementById('profile_picture');
-    const previewContainer = document.getElementById('profilePicturePreview');
-    const currentPicture = document.getElementById('currentProfilePicture');
-    const profileIcon = document.getElementById('profileIcon');
-    const loadingIndicator = document.getElementById('profilePictureLoading');
-
-    profileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // Show loading while processing the image
-        loadingIndicator.style.display = 'block';
-        
-        // Hide current elements
-        if (currentPicture) currentPicture.style.display = 'none';
-        if (profileIcon) profileIcon.style.display = 'none';
-        previewContainer.style.display = 'none';
-
-        // Check if the file is an image
-        if (!file.type.match('image.*')) {
-            showToast('Please select a valid image file', 'error');
-            loadingIndicator.style.display = 'none';
-            if (currentPicture) currentPicture.style.display = 'block';
-            if (profileIcon) profileIcon.style.display = 'block';
-            return;
-        }
-
-        // Create preview
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            previewContainer.innerHTML = `<img src="${e.target.result}" alt="Preview" class="profile-picture">`;
-            previewContainer.style.display = 'block';
-            loadingIndicator.style.display = 'none';
-        };
-        reader.readAsDataURL(file);
-    });
-}
 </script>
 @endsection

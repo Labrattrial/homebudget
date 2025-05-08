@@ -62,7 +62,7 @@ class BudgetController extends Controller
         $recentTransactions = Transaction::with('category')
             ->where('user_id', $user->id)
             ->orderBy('date', 'desc')
-            ->limit(5)
+            ->amount_limit(5)
             ->get()
             ->map(function($transaction) {
                 return [

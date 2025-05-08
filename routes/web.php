@@ -8,7 +8,7 @@ use App\Http\Controllers\{
     UserExpensesController,
     AnalysisController,
     SettingsController,
-    BudgetController,
+
 
 };
 use Illuminate\Support\Facades\Auth;
@@ -28,6 +28,7 @@ Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::middleware('auth')->group(function () {
     // Dashboard
     Route::get('/dashboard', [MainDashboardController::class, 'showDashboard'])->name('user.dashboard');
+    Route::get('/dashboard/data', [MainDashboardController::class, 'getDashboardData'])->name('user.dashboard.data'); 
     Route::post('/dismiss-budget-warning', function() {
         session()->forget('budget_warning');
         return response()->json(['success' => true]);
@@ -42,10 +43,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/{id}', [UserExpensesController::class, 'destroy']);
     });
 
-    // Budget
-    Route::post('/budget', [AnalysisController::class, 'saveBudget'])->name('saveBudget');
-    Route::post('/budgets', [BudgetController::class, 'store'])->name('budgets.store');
-    Route::post('/budgets/clear', [BudgetController::class, 'clear'])->name('budgets.clear');
+    
 
 
     // Analysis Routes
@@ -64,5 +62,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/password', [SettingsController::class, 'updatePassword'])->name('settings.password.update');
     });
 
-    Route::post('/save-budgets', [MainDashboardController::class, 'saveBudgets'])->name('saveBudgets');
+    // Budget Routes
+    Route::post('/budgets', [MainDashboardController::class, 'saveBudgets'])->name('saveBudgets');
+    Route::get('/api/spending-trend', [MainDashboardController::class, 'getSpendingTrend']);
 });
