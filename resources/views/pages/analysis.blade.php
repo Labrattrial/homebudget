@@ -1,7 +1,7 @@
 @extends('layouts.main')
 
 @section('content')
-@vite(['resources/css/app.css', 'resources/js/app.js', 'resources/css/analysis.css', 'resources/js/chart.js'])
+@vite(['resources/css/app.css', 'resources/js/app.js', 'resources/css/analysis.css', 'resources/js/chart.js', 'resources/js/fontawesome.js'])
 
 <div class="dashboard-container">
     <div class="analysis-wrapper">
@@ -29,8 +29,8 @@
         
         <!-- Summary Metrics -->
         <div class="summary-metrics">
-            <p>Total Spending: ₱<span id="totalSpending">{{ number_format($totalSpending ?? 0, 2) }}</span></p>
-            <p>Daily Average: ₱<span id="dailyAverage">{{ number_format($dailyAverage ?? 0, 2) }}</span></p>
+            <p>Total Spending: <span class="currency">{{ Auth::user()->currency_symbol }}</span><span id="totalSpending">{{ number_format($totalSpending ?? 0, 2) }}</span></p>
+            <p>Daily Average: <span class="currency">{{ Auth::user()->currency_symbol }}</span><span id="dailyAverage">{{ number_format($dailyAverage ?? 0, 2) }}</span></p>
         </div>
 
         <!-- Date Range Selector -->
@@ -102,6 +102,7 @@
         <div class="chart-row">
             <!-- Spending Trend Chart -->
             <div class="chart-container">
+                <div class="chart-header">
                 <h2>Spending Trend</h2>
                 <div class="chart-tabs">
                     <button class="btn btn-secondary chart-filter-btn" id="dailyTab" data-type="daily">
@@ -115,15 +116,10 @@
                     <button class="btn btn-secondary chart-filter-btn active" id="monthlyTab" data-type="monthly">
                         <span class="btn-text">Monthly</span>
                         <span class="spinner"></span>
-                    </button>
-                    <div class="chart-actions">
-                        <button class="btn btn-outline-secondary" onclick="exportChart('spendingTrendChart')">
-                            <i class="fas fa-download"></i> Export
                         </button>
                     </div>
                 </div>
-                <h4 id="spendingTitle" class="text-center mb-3">Monthly Spending</h4>
-                <div class="chart-wrapper">
+                <div class="chart-content">
                     <div class="chart-loading-overlay">
                         <div class="chart-spinner"></div>
                     </div>
@@ -137,8 +133,10 @@
 
             <!-- Category Breakdown Chart -->
             <div class="chart-container">
+                <div class="chart-header">
                 <h2>Category Breakdown</h2>
-                <div class="chart-wrapper">
+                </div>
+                <div class="chart-content">
                     <div class="chart-loading-overlay">
                         <div class="chart-spinner"></div>
                     </div>
@@ -147,18 +145,23 @@
                         <p>No category data available for the selected period</p>
                     </div>
                     <canvas id="categoryBreakdownChart"></canvas>
-                    <div class="chart-actions">
-                        <button class="btn btn-outline-secondary" onclick="exportChart('categoryBreakdownChart')">
-                            <i class="fas fa-download"></i> Export
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Detailed Breakdown Table -->
         <div class="detailed-breakdown">
+            <div class="table-header">
+                <div class="table-header-left">
             <h2>Detailed Category Breakdown</h2>
+                </div>
+                <div class="table-header-right">
+                    <div class="table-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="form-control" placeholder="Search categories...">
+                    </div>
+                </div>
+            </div>
             <div class="table-wrapper">
                 <div class="no-data-message" style="display: none;">
                     <i class="fas fa-table"></i>
@@ -201,21 +204,324 @@
     </div>
 </div>
 
+<style>
+/* Chart Container Styles */
+.chart-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.chart-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 1.5rem;
+    height: 500px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevent overflow */
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0; /* Prevent header from shrinking */
+}
+
+.chart-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.chart-tabs {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chart-filter-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.chart-filter-btn.active {
+    background-color: #4a5568;
+    color: white;
+}
+
+.chart-content {
+    flex: 1;
+    position: relative;
+    min-height: 0; /* Allow content to shrink */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-content canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Table Styles */
+.detailed-breakdown {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+}
+
+.table-header-left {
+    display: flex;
+    align-items: center;
+}
+
+.table-header-right {
+    display: flex;
+    align-items: center;
+}
+
+.table-search {
+    position: relative;
+    width: 300px;
+    display: flex;
+    align-items: center;
+}
+
+.table-search i {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #a0aec0;
+    font-size: 0.875rem;
+}
+
+.table-search input {
+    padding-left: 2.5rem;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    height: 38px;
+    width: 100%;
+}
+
+.table-wrapper {
+    position: relative;
+    overflow-x: auto;
+}
+
+#categoryBreakdownTable {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+#categoryBreakdownTable thead th {
+    background-color: #f7fafc;
+    padding: 1rem;
+    font-weight: 600;
+    color: #4a5568;
+    text-align: left;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+#categoryBreakdownTable tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    color: #4a5568;
+}
+
+#categoryBreakdownTable tbody tr:hover {
+    background-color: #f7fafc;
+}
+
+/* DataTables Custom Styling */
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter {
+    display: none; /* Hide duplicate search and length controls */
+}
+
+.dataTables_wrapper .dataTables_info {
+    color: #4a5568;
+    padding: 1rem 0;
+}
+
+.dataTables_wrapper .dataTables_paginate,
+.dataTables_wrapper .dataTables_paginate .paginate_button,
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+    display: none;
+}
+
+/* Loading States */
+.chart-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+}
+
+.chart-loading-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.chart-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #4a5568;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* No Data Message */
+.no-data-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #a0aec0;
+}
+
+.no-data-message i {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.no-data-message p {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .chart-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-container {
+        height: 400px;
+    }
+}
+
+@media (max-width: 768px) {
+    .chart-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .chart-tabs {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .table-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .table-search {
+        width: 100%;
+    }
+}
+</style>
+
 <script>
 let spendingTrendChart = null;
 let categoryBreakdownChart = null;
 let breakdownTable = null;
 
 function initializeCharts() {
-    // Initialize DataTable
     breakdownTable = $('#categoryBreakdownTable').DataTable({
         responsive: true,
-        dom: 'Bfrtip',
-        buttons: ['copy', 'csv', 'excel', 'pdf', 'print'],
+        dom: '<"top"B>rt',
+        buttons: [
+            {
+                extend: 'collection',
+                text: '<i class="fas fa-download"></i> Export',
+                className: 'btn btn-outline-secondary',
+                buttons: [
+                    {
+                        extend: 'copy',
+                        text: '<i class="fas fa-copy"></i> Copy',
+                        className: 'btn btn-outline-secondary'
+                    },
+                    {
+                        extend: 'excel',
+                        text: '<i class="fas fa-file-excel"></i> Excel',
+                        className: 'btn btn-outline-secondary'
+                    },
+                    {
+                        extend: 'csv',
+                        text: '<i class="fas fa-file-csv"></i> CSV',
+                        className: 'btn btn-outline-secondary'
+                    },
+                    {
+                        extend: 'pdf',
+                        text: '<i class="fas fa-file-pdf"></i> PDF',
+                        className: 'btn btn-outline-secondary'
+                    },
+                    {
+                        extend: 'print',
+                        text: '<i class="fas fa-print"></i> Print',
+                        className: 'btn btn-outline-secondary'
+                    }
+                ]
+            }
+        ],
         order: [[1, 'desc']],
         language: {
-            emptyTable: "No data available in table"
-        }
+            emptyTable: "No data available in table",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries"
+        },
+        pageLength: 10,
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+        columnDefs: [
+            { className: "text-left", targets: [0] },
+            { className: "text-right", targets: [1, 2, 3, 4] }
+        ]
+    });
+
+    // Connect the custom search input to DataTable
+    $('.table-search input').on('keyup', function() {
+        breakdownTable.search(this.value).draw();
     });
 
     // Initialize charts with empty data
@@ -243,7 +549,7 @@ function initializeCharts() {
                     callbacks: {
                         label: function(context) {
                             const value = context.raw || 0;
-                            return `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+                            return '{{ Auth::user()->currency_symbol }}' + value.toLocaleString('en-PH', { minimumFractionDigits: 2 });
                         }
                     }
                 }
@@ -254,11 +560,11 @@ function initializeCharts() {
                     grid: { display: false }
                 },
                 y: { 
-                    title: { display: true, text: 'Amount (₱)' }, 
+                    title: { display: true, text: 'Amount ({{ Auth::user()->currency_symbol }})' }, 
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return '₱' + value.toLocaleString('en-PH');
+                            return '{{ Auth::user()->currency_symbol }}' + value.toLocaleString('en-PH');
                         }
                     }
                 }
@@ -277,14 +583,20 @@ function initializeCharts() {
                     'rgba(255, 99, 132, 0.5)',
                     'rgba(54, 162, 235, 0.5)',
                     'rgba(255, 206, 86, 0.5)',
-                    'rgba(153, 102, 255, 0.5)'
+                    'rgba(153, 102, 255, 0.5)',
+                    'rgba(255, 159, 64, 0.5)',
+                    'rgba(199, 199, 199, 0.5)',
+                    'rgba(83, 102, 255, 0.5)'
                 ],
                 borderColor: [
                     'rgba(75, 192, 192, 1)',
                     'rgba(255, 99, 132, 1)',
                     'rgba(54, 162, 235, 1)',
                     'rgba(255, 206, 86, 1)',
-                    'rgba(153, 102, 255, 1)'
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)',
+                    'rgba(199, 199, 199, 1)',
+                    'rgba(83, 102, 255, 1)'
                 ],
                 borderWidth: 1
             }]
@@ -297,7 +609,10 @@ function initializeCharts() {
                     position: 'right',
                     labels: {
                         boxWidth: 15,
-                        padding: 15
+                        padding: 15,
+                        font: {
+                            size: 12
+                        }
                     }
                 },
                 tooltip: {
@@ -306,7 +621,7 @@ function initializeCharts() {
                             const value = context.raw || 0;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                             const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                            return `${context.label}: ₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })} (${percentage}%)`;
+                            return `${context.label}: {{ Auth::user()->currency_symbol }}${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })} (${percentage}%)`;
                         }
                     }
                 }
@@ -371,10 +686,10 @@ function updateCharts(data) {
             
             breakdownTable.row.add([
                 name,
-                `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-                `₱${data.budgetAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                '{{ Auth::user()->currency_symbol }}' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+                '{{ Auth::user()->currency_symbol }}' + data.budgetAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
                 data.budgetAmount > 0 ? `${((amount / data.budgetAmount) * 100).toFixed(1)}%` : 'N/A',
-                `${percentage}%`
+                '{{ Auth::user()->currency_symbol }}' + percentage + '%'
             ]);
         });
     }
@@ -390,6 +705,10 @@ function updateCharts(data) {
 
 function loadData(startDate, endDate, viewType = 'monthly') {
     showLoading();
+    
+    // Update the date inputs to match the selected range
+    $('#startDate').val(startDate);
+    $('#endDate').val(endDate);
     
     fetch(`/analysis/data?start=${startDate}&end=${endDate}&view=${viewType}`)
         .then(response => {
@@ -487,7 +806,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        loadData(startDate, endDate);
+        const viewType = $('.chart-filter-btn.active').data('type');
+        loadData(startDate, endDate, viewType);
     });
 
     $('.range-preset').click(function() {
@@ -496,9 +816,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
         
-        $('#startDate').val(startDate.toISOString().split('T')[0]);
-        $('#endDate').val(endDate.toISOString().split('T')[0]);
-        loadData(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]);
+        const formattedStartDate = startDate.toISOString().split('T')[0];
+        const formattedEndDate = endDate.toISOString().split('T')[0];
+        
+        const viewType = $('.chart-filter-btn.active').data('type');
+        loadData(formattedStartDate, formattedEndDate, viewType);
     });
 
     $('.chart-filter-btn').click(function() {

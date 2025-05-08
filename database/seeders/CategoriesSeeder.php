@@ -9,13 +9,28 @@ class CategoriesSeeder extends Seeder
 {
     public function run()
     {
+        $categories = [
+            ['name' => 'Food'],
+            ['name' => 'Transportation'],
+            ['name' => 'Bills'],
+            ['name' => 'Entertainment'],
+            ['name' => 'Health'],
+            ['name' => 'Education'],
+        ];
+
+        foreach ($categories as $category) {
+            // Check if category already exists
+            $exists = DB::table('categories')
+                ->where('name', $category['name'])
+                ->exists();
+
+            if (!$exists) {
         DB::table('categories')->insert([
-            ['id' => 1, 'name' => 'Food'],
-            ['id' => 2, 'name' => 'Transportation'],
-            ['id' => 3, 'name' => 'Bills'],
-            ['id' => 4, 'name' => 'Entertainment'],
-            ['id' => 5, 'name' => 'Health'],
-            ['id' => 6, 'name' => 'Education'],
+                    'name' => $category['name'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
         ]);
+            }
+        }
     }
 }

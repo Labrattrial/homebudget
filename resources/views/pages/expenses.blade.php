@@ -58,7 +58,7 @@
   <div class="expenses-summary">
     <div class="summary-card total-expenses">
       <h3>Total Expenses</h3>
-      <p class="amount">₱{{ number_format($expenses->sum('amount'), 2) }}</p>
+      <p class="amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($expenses->sum('amount'), 2) }}</p>
       <p class="period">This Month</p>
     </div>
     <div class="summary-card category-breakdown">
@@ -75,7 +75,7 @@
             <div class="category-bar">
               <div class="bar-fill" style="width: {{ $percentage }}%"></div>
             </div>
-            <span class="category-amount">₱{{ number_format($categoryTotal, 2) }}</span>
+            <span class="category-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($categoryTotal, 2) }}</span>
           </div>
         @endforeach
       </div>
@@ -111,7 +111,7 @@
         </div>
         <p><strong>Category:</strong> <span class="category">{{ $expense->category->name }}</span></p>
         <p><strong>Specs:</strong> <span class="specs">{{ $expense->description }}</span></p>
-        <p><strong>Total Expense:</strong> <span class="amount">₱{{ number_format($expense->amount, 2) }}</span></p>
+        <p><strong>Total Expense:</strong> <span class="amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($expense->amount, 2) }}</span></p>
         <p><strong>Date:</strong> <span class="date">{{ $expense->date }}</span></p>
       </div>
     @endforeach
@@ -173,7 +173,10 @@
 
         <div class="form-group">
           <label for="modalAmount">Total Expense:</label>
+          <div class="input-field">
+            <span class="currency">{{ Auth::user()->currency_symbol }}</span>
           <input type="number" name="amount" id="modalAmount" required placeholder="Enter amount" step="0.01" min="0.01" onchange="validateField(this)" />
+          </div>
           <div class="error-message" id="error-amount"></div>
         </div>
 
@@ -521,7 +524,7 @@
       </div>
       <p><strong>Category:</strong> <span class="category">${expense.category.name}</span></p>
       <p><strong>Specs:</strong> <span class="specs">${expense.description}</span></p>
-      <p><strong>Total Expense:</strong> <span class="amount">₱${parseFloat(expense.amount).toFixed(2)}</span></p>
+      <p><strong>Total Expense:</strong> <span class="amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>${parseFloat(expense.amount).toFixed(2)}</span></p>
       <p><strong>Date:</strong> <span class="date">${expense.date}</span></p>
     `;
     return card;
@@ -687,7 +690,7 @@
   function updateSummaryAfterDelete(totalExpenses, categoryBreakdown) {
     // Update total expenses
     document.querySelector('.total-expenses .amount').textContent = 
-      '₱' + parseFloat(totalExpenses).toFixed(2);
+      '<span class="currency">{{ Auth::user()->currency_symbol }}</span>' + parseFloat(totalExpenses).toFixed(2);
 
     // Update category breakdown
     const categoryList = document.querySelector('.category-list');
@@ -702,7 +705,7 @@
           <div class="category-bar">
             <div class="bar-fill" style="width: ${percentage}%"></div>
           </div>
-          <span class="category-amount">₱${parseFloat(category.total).toFixed(2)}</span>
+          <span class="category-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>${parseFloat(category.total).toFixed(2)}</span>
         </div>
       `;
     });
@@ -724,7 +727,7 @@
 
       // Update the summary section
       document.querySelector('.total-expenses .amount').textContent = 
-        '₱' + parseFloat(data.totalExpenses).toFixed(2);
+        '<span class="currency">{{ Auth::user()->currency_symbol }}</span>' + parseFloat(data.totalExpenses).toFixed(2);
 
       // Update category breakdown
       const categoryList = document.querySelector('.category-list');
@@ -739,7 +742,7 @@
             <div class="category-bar">
               <div class="bar-fill" style="width: ${percentage}%"></div>
             </div>
-            <span class="category-amount">₱${parseFloat(category.total).toFixed(2)}</span>
+            <span class="category-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>${parseFloat(category.total).toFixed(2)}</span>
           </div>
         `;
       });

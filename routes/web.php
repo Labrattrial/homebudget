@@ -12,6 +12,7 @@ use App\Http\Controllers\{
 
 };
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -49,6 +50,7 @@ Route::middleware('auth')->group(function () {
 
     // Analysis Routes
     Route::get('/analysis', [AnalysisController::class, 'index'])->name('user.analysis');
+    Route::get('/analysis/data', [AnalysisController::class, 'getData'])->name('analysis.data');
     Route::get('/analysis/data/custom', [AnalysisController::class, 'customDateRangeData'])->name('analysis.customData');
     Route::get('/analysis/data/week/{weekNumber}', [AnalysisController::class, 'getWeekData']);
     Route::get('/analysis/data/weekly', [AnalysisController::class, 'getWeeklyData']);
@@ -59,8 +61,36 @@ Route::middleware('auth')->group(function () {
         Route::get('/', function () {
             return view('pages.settings');
         })->name('user.settings');
-        Route::post('/settings/profile/update', [SettingsController::class, 'updateProfile'])->name('settings.profile.update');
+        Route::post('/profile/update', [SettingsController::class, 'updateProfile'])->name('settings.profile.update');
         Route::post('/password', [SettingsController::class, 'updatePassword'])->name('settings.password.update');
+        Route::post('/currency', [SettingsController::class, 'updateCurrency'])->name('settings.currency.update');
+    });
+
+    // API Routes
+    Route::get('/api/exchange-rate', function (Request $request) {
+        try {
+            $from = $request->query('from');
+            $to = $request->query('to');
+            
+            if (!$from || !$to) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Missing currency parameters'
+                ], 400);
+            }
+
+            $rate = \App\Helpers\CurrencyHelper::getExchangeRate($from, $to);
+            
+            return response()->json([
+                'success' => true,
+                'rate' => $rate
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
     });
 
     // Budget Routes

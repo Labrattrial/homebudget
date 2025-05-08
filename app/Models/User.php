@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\Budget;
 use App\Models\Category;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -19,6 +20,7 @@ class User extends Authenticatable
         'email',
         'password',
         'profile_picture',
+        'currency',
     ];
 
     protected $hidden = [
@@ -30,6 +32,8 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    protected $appends = ['profile_picture_url', 'currency_symbol'];
 
     // Relationship definition with correct return types
     public function transactions(): HasMany
@@ -45,5 +49,30 @@ class User extends Authenticatable
     public function categories(): HasMany
     {
         return $this->hasMany(Category::class);
+    }
+
+    public function getProfilePictureUrlAttribute()
+    {
+        if ($this->profile_picture) {
+            // Check if the file exists in storage
+            if (Storage::exists('public/' . $this->profile_picture)) {
+                return Storage::url($this->profile_picture);
+            }
+        }
+        // Return default profile picture if no custom picture exists
+        return Storage::url('defaults/default-profile.png');
+    }
+
+    public function getProfilePicturePathAttribute()
+    {
+        if ($this->profile_picture) {
+            return 'public/' . $this->profile_picture;
+        }
+        return 'public/defaults/default-profile.png';
+    }
+
+    public function getCurrencySymbolAttribute()
+    {
+        return \App\Helpers\CurrencyHelper::getCurrencySymbol($this->currency);
     }
 }

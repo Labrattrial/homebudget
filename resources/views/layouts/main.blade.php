@@ -7,7 +7,9 @@
   <title>{{ $title ?? 'HomeBudget' }}</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet"/>
   @vite(['resources/css/navigations.css', 'resources/js/fontawesome.js'])
-  @yield('scripts')
+  @vite(['resources/css/app.css', 'resources/js/app.js'])
+  @vite(['resources/js/currency-handler.js'])
+  @stack('scripts')
 </head>
 <body>
 

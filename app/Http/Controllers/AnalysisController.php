@@ -68,14 +68,10 @@ class AnalysisController extends Controller
                 return response()->json(['error' => 'Date range cannot exceed 1 year'], 400);
             }
 
-            // Create cache key
-            $cacheKey = "analysis_data_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}_{$viewType}_" . Auth::id();
-
-            return response()->json(Cache::remember($cacheKey, now()->addMinutes(15), function () use ($startDate, $endDate, $viewType) {
                 $transactions = $this->getTransactions($startDate, $endDate);
                 
                 if ($transactions->isEmpty()) {
-                    return [
+                return response()->json([
                         'totalSpending' => 0,
                         'dailyAverage' => 0,
                         'categoryNames' => [],
@@ -84,7 +80,7 @@ class AnalysisController extends Controller
                         'trendAmounts' => [],
                         'budgetAmount' => 0,
                         'message' => 'No data available for the selected period'
-                    ];
+                ]);
                 }
 
                 $metrics = $this->calculateMetrics($transactions, $startDate, $endDate);
@@ -95,9 +91,10 @@ class AnalysisController extends Controller
                 $currentMonth = now()->format('Y-m');
                 $budget = Budget::where('user_id', Auth::id())
                                 ->where('month', $currentMonth)
+                            ->whereNull('category_id') // Get total budget
                                 ->first();
 
-                return [
+            return response()->json([
                     'totalSpending' => $metrics['totalSpending'],
                     'dailyAverage' => $metrics['dailyAverage'],
                     'categoryNames' => collect($categoryBreakdown)->pluck('name')->toArray(),
@@ -105,8 +102,7 @@ class AnalysisController extends Controller
                     'trendDates' => array_keys($trendData),
                     'trendAmounts' => array_values($trendData),
                     'budgetAmount' => $budget ? $budget->amount_limit : 0,
-                ];
-            }));
+            ]);
         } catch (\Exception $e) {
             Log::error('Error in getData: ' . $e->getMessage());
             return response()->json([
@@ -143,21 +139,36 @@ class AnalysisController extends Controller
             ->where('user_id', Auth::id())
             ->sum('amount');
 
-        return Category::join('transactions', 'categories.id', '=', 'transactions.category_id')
+        $currentMonth = now()->format('Y-m');
+        
+        // Get category spending and budget allocations
+        $categoryData = Category::join('transactions', 'categories.id', '=', 'transactions.category_id')
+            ->leftJoin('budgets', function($join) use ($currentMonth) {
+                $join->on('categories.id', '=', 'budgets.category_id')
+                    ->where('budgets.user_id', Auth::id())
+                    ->where('budgets.month', $currentMonth);
+            })
             ->whereBetween('transactions.date', [$startDate, $endDate])
             ->where('transactions.user_id', Auth::id())
-            ->selectRaw('categories.name, SUM(transactions.amount) as amount')
-            ->groupBy('categories.name')
+            ->selectRaw('
+                categories.name,
+                SUM(transactions.amount) as amount,
+                COALESCE(budgets.amount_limit, 0) as allocated
+            ')
+            ->groupBy('categories.name', 'budgets.amount_limit')
             ->orderByDesc('amount')
             ->get()
             ->map(function ($category) use ($totalSpending) {
                 return [
                     'name' => $category->name,
                     'amount' => $category->amount,
+                    'allocated' => $category->allocated,
                     'percentage' => $totalSpending > 0 ? round(($category->amount / $totalSpending) * 100, 1) : 0,
                 ];
             })
             ->toArray();
+
+        return $categoryData;
     }
 
     protected function getTrendData($startDate, $endDate, $viewType = 'monthly')
