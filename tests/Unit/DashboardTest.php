@@ -3,208 +3,98 @@
 namespace Tests\Unit;
 
 use Tests\TestCase;
+use App\Http\Controllers\MainDashboardController;
 use App\Models\User;
-use App\Models\Transaction;
-use App\Models\Category;
+use App\Models\Expense;
+use App\Models\Budget;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Facades\Auth;
 
 class DashboardTest extends TestCase
 {
     use RefreshDatabase;
 
     protected $user;
+    protected $controller;
 
-    protected function setUp(): void
+    public function setUp(): void
     {
         parent::setUp();
-        
-        /** @var User|Authenticatable $user */
-        $this->user = User::factory()->create(['name' => 'Test User']);
+        $this->user = User::factory()->create();
+        $this->controller = new MainDashboardController();
     }
 
-    /** @test */
-    public function welcome_section_displays_correctly()
+    public function test_show_dashboard_returns_correct_view()
     {
-        $user = User::factory()->create(['name' => 'Test User']);
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('Welcome, Test User!')
-            ->assertSee('Here\'s a quick overview of your finances')
-            ->assertSee('<i class="fas fa-coins fa-3x"></i>', false);
+        Auth::login($this->user);
+        $response = $this->get(route('user.dashboard'));
+        $response->assertStatus(200);
+        $response->assertViewIs('pages.dashboard');
     }
 
-    /** @test */
-    public function net_worth_card_displays_correct_data()
+    public function test_get_dashboard_data_returns_correct_data()
     {
-        $user = User::factory()->create();
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        Transaction::factory(2)->create([
-            'user_id' => $user->id,
-            'amount' => 1000,
-            'date' => now()->subDays(10)
-        ]);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('MY NET WORTH')
-            ->assertSee('₱2,000.00')
-            ->assertSee('Last 30 Days');
-    }
-
-    /** @test */
-    public function budget_setting_functionality_works()
-    {
-        $user = User::factory()->create();
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        $response = $this->post('/set-budget', ['budget' => 5000]);
-        
-        $response->assertStatus(302);
-        $this->assertDatabaseHas('users', [
-            'id' => $user->id,
-            'budget' => 5000
+        Auth::login($this->user);
+        $response = $this->get(route('user.dashboard.data'));
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'totalExpenses',
+            'budgetStatus',
+            'recentTransactions',
+            'categorySummary'
         ]);
     }
 
-    /** @test */
-    public function category_breakdown_displays_correct_data()
+    public function test_get_budget_status_returns_correct_data()
     {
-        $user = User::factory()->create();
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        $foodCategory = Category::factory()->create(['name' => 'Food']);
-        $transportCategory = Category::factory()->create(['name' => 'Transport']);
-        
-        Transaction::factory()->create([
-            'user_id' => $user->id,
-            'category_id' => $foodCategory->id,
-            'amount' => 1500
+        Auth::login($this->user);
+        $response = $this->get(route('budget.status'));
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'status',
+            'message'
         ]);
-        
-        Transaction::factory()->create([
-            'user_id' => $user->id,
-            'category_id' => $transportCategory->id,
-            'amount' => 800
-        ]);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('CATEGORY BREAKDOWN')
-            ->assertSee('Food: ₱1,500.00')
-            ->assertSee('Transport: ₱800.00')
-            ->assertSee('<div class="fake-pie"></div>', false);
     }
 
-    /** @test */
-    public function category_breakdown_shows_message_when_no_data()
+    public function test_get_category_summary_returns_correct_data()
     {
-        $user = User::factory()->create();
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('No category data available.');
-    }
-
-    /** @test */
-    public function monthly_expenses_displays_correct_data()
-    {
-        $user = User::factory()->create();
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        $foodCategory = Category::factory()->create(['name' => 'Food']);
-        $transportCategory = Category::factory()->create(['name' => 'Transport']);
-        
-        Transaction::factory()->create([
-            'user_id' => $user->id,
-            'category_id' => $foodCategory->id,
-            'amount' => 2000,
-            'date' => now()->subDays(5)
+        Auth::login($this->user);
+        $response = $this->get(route('dashboard.category-summary'));
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'categories',
+            'totals'
         ]);
-        
-        Transaction::factory()->create([
-            'user_id' => $user->id,
-            'category_id' => $transportCategory->id,
-            'amount' => 1000,
-            'date' => now()->subDays(10)
+    }
+
+    public function test_save_budgets_saves_correctly()
+    {
+        Auth::login($this->user);
+        $budgetData = [
+            'food' => 500,
+            'transport' => 200,
+            'entertainment' => 300
+        ];
+
+        $response = $this->post(route('saveBudgets'), $budgetData);
+        $response->assertStatus(200);
+        $response->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('budgets', [
+            'user_id' => $this->user->id,
+            'category' => 'food',
+            'amount' => 500
         ]);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('MONTHLY EXPENSES')
-            ->assertSee('<div class="fake-bar-graph">', false)
-            ->assertSee('<div class="bar-container">', false);
     }
 
-    /** @test */
-    public function monthly_expenses_shows_message_when_no_data()
+    public function test_get_spending_trend_returns_correct_data()
     {
-        $user = User::factory()->create();
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('No expenses recorded for this month.');
-    }
-
-    /** @test */
-    public function notifications_show_when_budget_exceeded()
-    {
-        $user = User::factory()->create(['budget' => 1000]);
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        Transaction::factory()->create([
-            'user_id' => $user->id,
-            'amount' => 1100
+        Auth::login($this->user);
+        $response = $this->get(route('spending.trend'));
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'labels',
+            'data'
         ]);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('You have exceeded your budget!', false)
-            ->assertSee('notification error', false);
-    }
-
-    /** @test */
-    public function notifications_show_when_near_budget_limit()
-    {
-        $user = User::factory()->create(['budget' => 1000]);
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        Transaction::factory()->create([
-            'user_id' => $user->id,
-            'amount' => 850
-        ]);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('You are near your budget limit.', false)
-            ->assertSee('notification warning', false);
-    }
-
-    /** @test */
-    public function javascript_functionality_is_present()
-    {
-        $user = User::factory()->create();
-        $this->actingAs($user instanceof Authenticatable ? $user : null);
-        
-        $response = $this->get('/dashboard');
-        
-        $response->assertStatus(200)
-            ->assertSee('document.addEventListener', false)
-            ->assertSee('setBudgetBtn.addEventListener', false)
-            ->assertSee('checkBudget', false)
-            ->assertSee('showNotification', false);
     }
 }

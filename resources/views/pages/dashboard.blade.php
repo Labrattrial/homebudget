@@ -13,16 +13,7 @@
           <div class="stat-icon"><i class="fas fa-piggy-bank"></i></div>
           <div>
             <p class="stat-label">Monthly Budget</p>
-            <p class="stat-value"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($budget, 2) }}</p>
-          </div>
-        </div>
-        <div class="quick-stat">
-          <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
-          <div>
-            <p class="stat-label">Spending Trend</p>
-            <p class="stat-value trend-{{ $spendingTrendPercentage > 100 ? 'up' : 'down' }}">
-              {{ abs(100 - $spendingTrendPercentage) }}% {{ $spendingTrendPercentage > 100 ? 'higher' : 'lower' }}
-            </p>
+            <p class="stat-value">₱{{ number_format($budget, 2) }}</p>
           </div>
         </div>
       </div>
@@ -45,51 +36,62 @@
       <div class="input-group">
           <label for="totalBudget">Total Monthly Budget</label>
           <div class="input-field">
-              <span class="currency">{{ Auth::user()->currency_symbol }}</span>
+              <span class="currency">₱</span>
               <input type="number" id="totalBudget" name="amount_limit" placeholder="e.g. 25,000" min="0" step="100" required>
           </div>
       </div>
 
-      <div class="category-budget-allocation">
-          <h3>Category Budget Allocation</h3>
-          <p class="allocation-subtitle">Distribute your budget across categories</p>
-          
-          <div class="allocation-summary">
-              <div class="total-allocated">
-                  <span>Total Allocated:</span>
-                  <span id="totalAllocated"><span class="currency">{{ Auth::user()->currency_symbol }}</span>0.00</span>
-              </div>
-              <div class="remaining-budget">
-                  <span>Remaining:</span>
-                  <span id="remainingBudget"><span class="currency">{{ Auth::user()->currency_symbol }}</span>0.00</span>
-              </div>
-          </div>
+      <div class="category-budget-setter">
+        <h4>Category Budget Allocation</h4>
+        <p class="subtitle">Set budget limits for each category</p>
+        
+        <div class="allocation-summary">
+          <span>Total Allocated: <strong id="totalAllocated">₱0.00</strong></span>
+          <span>Remaining: <strong id="remainingAllocation">₱0.00</strong></span>
+        </div>
 
-          <div class="category-allocations">
-              @foreach($categories as $category)
-              <div class="category-allocation-item">
-                  <div class="category-info">
-                      <i class="fas fa-{{ $category->icon ?? 'shopping-bag' }}"></i>
-                      <span>{{ $category->name }}</span>
-                  </div>
-                  <div class="allocation-input">
-                      <span class="currency">{{ Auth::user()->currency_symbol }}</span>
-                      <input type="number" 
-                             class="category-budget" 
-                             data-category-id="{{ $category->id }}"
-                             placeholder="0.00" 
-                             min="0" 
-                             step="100">
-                      <span class="percentage">0%</span>
-                  </div>
+        <div class="category-allocation-list">
+          @foreach($categoryAnalysis as $category)
+          <div class="category-allocation-item">
+            <div class="category-info">
+              <div class="category-color" style="background-color: {{ $category['color'] }};"></div>
+              <span class="category-name">{{ $category['name'] }}</span>
+            </div>
+            <div class="allocation-controls">
+              <div class="allocation-input">
+                <span class="currency">₱</span>
+                <input type="number" 
+                       class="category-allocation" 
+                       data-category-id="{{ $category['id'] }}"
+                       placeholder="0"
+                       min="0"
+                       step="100"
+                       value="{{ $category['budget'] }}">
               </div>
-              @endforeach
+              <div class="allocation-slider">
+                <input type="range" 
+                       class="allocation-range" 
+                       data-category-id="{{ $category['id'] }}"
+                       min="0"
+                       max="100"
+                       step="1"
+                       value="{{ $category['budget'] > 0 ? ($category['budget'] / $budget * 100) : 0 }}">
+                <span class="percentage">0%</span>
+              </div>
+            </div>
           </div>
+          @endforeach
+        </div>
       </div>
       
-      <button id="saveBudget" class="btn-primary">
-        <i class="fas fa-save"></i> Set Budget
-      </button>
+      <div class="budget-actions">
+        <button id="saveBudget" class="btn-primary">
+          <i class="fas fa-save"></i> Set Budget
+        </button>
+        <button id="cancelBudget" class="btn-secondary">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
     </div>
   </div>
 
@@ -100,20 +102,10 @@
       <!-- Spending Trend Chart -->
       <div class="card chart-card">
         <div class="card-header">
-          <h3><i class="fas fa-chart-line"></i> Spending Trend</h3>
-          <div class="time-filter">
-            <button class="time-btn active" data-period="1M">1M</button>
-            <button class="time-btn" data-period="3M">3M</button>
-            <button class="time-btn" data-period="6M">6M</button>
-            <button class="time-btn" data-period="1Y">1Y</button>
-          </div>
+          <h3><i class="fas fa-chart-bar"></i> Category Spending</h3>
         </div>
-        <canvas id="spendingTrendChart"></canvas>
-        <div class="chart-footer">
-          <div class="trend-indicator">
-            <i class="fas fa-arrow-{{ $spendingTrendPercentage > 100 ? 'up trend-up' : 'down trend-down' }}"></i>
-            <span>{{ abs(100 - $spendingTrendPercentage) }}% {{ $spendingTrendPercentage > 100 ? 'higher' : 'lower' }} than last month</span>
-          </div>
+        <div class="chart-container">
+          <canvas id="categorySpendingChart"></canvas>
         </div>
       </div>
       
@@ -127,21 +119,79 @@
         </div>
         
         <div class="budget-display">
-          <div class="budget-progress {{ ($budget > 0 && ($totalExpenses / $budget) > 0.8) ? 'warning' : '' }}">
-            <div class="progress-labels">
-              <span>Spent: <strong><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($totalExpenses, 2) }}</strong></span>
-              <span>Remaining: <strong><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format(max($budget - $totalExpenses, 0), 2) }}</strong></span>
+          <div class="stat-card">
+            <div class="stat-header">
+              <i class="fas fa-wallet"></i>
+              <span class="stat-title">Total Budget</span>
             </div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: {{ $budget > 0 ? min(100, ($totalExpenses / $budget) * 100) : 0 }}%"></div>
-              <div class="progress-threshold" style="left: 80%"></div>
+            <div class="stat-value" id="totalBudgetDisplay">₱{{ number_format($budget, 2) }}</div>
+            <div class="stat-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" id="budgetProgressFill" style="width: {{ $budget > 0 ? min(100, (array_sum(array_column($categoryAnalysis, 'spent')) / $budget) * 100) : 0 }}%"></div>
+              </div>
+              <span class="stat-percent">{{ $budget > 0 ? round((array_sum(array_column($categoryAnalysis, 'spent')) / $budget) * 100) : 0 }}%</span>
             </div>
-            <div class="budget-meta">
-              <span>Budget: <strong><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($budget, 2) }}</strong></span>
-              @if($budget > 0 && ($totalExpenses / $budget) > 0.8)
-                <span class="warning-text"><i class="fas fa-exclamation-circle"></i> Close to limit</span>
+            <div class="stat-footer">
+              @php
+                $totalCategorySpent = array_sum(array_column($categoryAnalysis, 'spent'));
+                $remaining = $budget - $totalCategorySpent;
+              @endphp
+              @if($budget > 0)
+                @if($totalCategorySpent > $budget)
+                  <span class="stat-warning"><i class="fas fa-exclamation-triangle"></i> Over budget</span>
+                @else
+                  <span class="stat-remaining">₱{{ number_format($remaining, 2) }} left</span>
+                @endif
+              @else
+                <span class="stat-remaining">No budget set</span>
               @endif
             </div>
+          </div>
+        </div>
+
+        <!-- Category Budget Settings -->
+        <div id="categoryBudgetSettings" class="category-budget-settings" style="display: none;">
+          <h4>Category Budgets</h4>
+          @foreach($categoryAnalysis as $category)
+          <div class="category-budget-item">
+            <div class="category-budget-header">
+              <span class="category-name">{{ $category['name'] }}</span>
+              <span class="category-amount">₱{{ number_format($category['budget'], 2) }}</span>
+            </div>
+            <input type="range" 
+                   class="category-budget-slider" 
+                   data-category-id="{{ $category['id'] }}"
+                   data-original-value="{{ $category['budget'] }}"
+                   min="0" 
+                   max="{{ max($budget, 10000) }}" 
+                   step="100"
+                   value="{{ $category['budget'] }}">
+            <div class="stat-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ $category['budget'] > 0 ? min(100, ($category['spent'] / $category['budget']) * 100) : 0 }}%"></div>
+              </div>
+              <span class="stat-percent">{{ $category['budget'] > 0 ? round(($category['spent'] / $category['budget']) * 100) : 0 }}%</span>
+            </div>
+            <div class="stat-footer">
+              @if($category['budget'] > 0)
+                @if($category['remaining'] < 0)
+                  <span class="stat-warning"><i class="fas fa-exclamation-triangle"></i> Over budget</span>
+                @else
+                  <span class="stat-remaining">₱{{ number_format($category['remaining'], 2) }} left</span>
+                @endif
+              @else
+                <span class="stat-remaining">No budget set</span>
+              @endif
+            </div>
+          </div>
+          @endforeach
+          <div class="budget-actions">
+            <button id="saveCategoryBudgets" class="btn-primary">
+              <i class="fas fa-save"></i> Save Category Budgets
+            </button>
+            <button id="cancelCategoryBudgets" class="btn-secondary">
+              <i class="fas fa-times"></i> Cancel
+            </button>
           </div>
         </div>
       </div>
@@ -160,18 +210,28 @@
         </div>
         
         <div class="chart-view" id="chartView" style="display:none;">
-          <canvas id="categoryBreakdownChart"></canvas>
+          <div class="chart-container">
+            <canvas id="categoryBreakdownChart"></canvas>
+          </div>
+          <div class="chart-legend" id="categoryChartLegend"></div>
         </div>
         
         <div class="category-list" id="categoryListView">
+          @php
+            $totalSpent = array_sum(array_column($categoryAnalysis, 'spent'));
+          @endphp
           @foreach($categoryAnalysis as $category)
-          <div class="category-item">
+          <div class="category-item" data-category-id="{{ $category['id'] }}">
             <div class="category-color" style="background-color: {{ $category['color'] }};"></div>
             <span class="category-name">{{ $category['name'] }}</span>
-            <span class="category-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['spent'], 2) }}</span>
-            <span class="category-percent">{{ $budget > 0 ? round(($category['spent'] / $budget) * 100) : 0 }}%</span>
+            <span class="category-amount">₱{{ number_format($category['spent'], 2) }}</span>
+            <span class="category-percent">{{ $totalSpent > 0 ? round(($category['spent'] / $totalSpent) * 100) : 0 }}%</span>
           </div>
           @endforeach
+          <div class="category-total">
+            <span class="total-label">Total Spent</span>
+            <span class="total-amount">₱{{ number_format($totalSpent, 2) }}</span>
+          </div>
         </div>
       </div>
       
@@ -179,9 +239,6 @@
       <div class="card transactions-card">
         <div class="card-header">
           <h3><i class="fas fa-history"></i> Recent Transactions</h3>
-          <button class="btn-icon" id="addTransactionBtn">
-            <i class="fas fa-plus"></i>
-          </button>
         </div>
         
         <div class="transactions-list">
@@ -195,7 +252,7 @@
               <div class="transaction-category">{{ $transaction->category->name ?? 'Uncategorized' }}</div>
             </div>
             <div class="transaction-amount {{ $transaction->amount < 0 ? 'negative' : 'positive' }}">
-              {{ $transaction->amount < 0 ? '-' : '+' }}<span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format(abs($transaction->amount), 2) }}
+              {{ $transaction->amount < 0 ? '-' : '+' }}₱{{ number_format(abs($transaction->amount), 2) }}
             </div>
           </div>
           @empty
@@ -220,7 +277,7 @@
           <i class="fas fa-{{ $category['icon'] ?? 'shopping-bag' }}"></i>
           <span class="stat-title">{{ $category['name'] }}</span>
         </div>
-        <div class="stat-value"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['spent'], 2) }}</div>
+        <div class="stat-value">₱{{ number_format($category['spent'], 2) }}</div>
         <div class="stat-progress">
           <div class="progress-bar">
             <div class="progress-fill" style="width: {{ $category['budget'] > 0 ? min(100, ($category['spent'] / $category['budget']) * 100) : 0 }}%"></div>
@@ -232,7 +289,7 @@
             @if($category['remaining'] < 0)
               <span class="stat-warning"><i class="fas fa-exclamation-triangle"></i> Over budget</span>
             @else
-              <span class="stat-remaining"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['remaining'], 2) }} left</span>
+              <span class="stat-remaining">₱{{ number_format($category['remaining'], 2) }} left</span>
             @endif
           @else
             <span class="stat-remaining">No budget set</span>
@@ -263,7 +320,7 @@
       <div class="form-group">
         <label for="transactionAmount">Amount</label>
         <div class="input-field">
-          <span class="currency">{{ Auth::user()->currency_symbol }}</span>
+          <span class="currency">₱</span>
           <input type="number" id="transactionAmount" name="amount" step="0.01" required>
         </div>
       </div>
@@ -326,202 +383,198 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function initBudgetControls() {
         const saveBudgetBtn = document.getElementById('saveBudget');
+        const cancelBudgetBtn = document.getElementById('cancelBudget');
+        const editBudgetBtn = document.getElementById('editBudget');
         const totalBudgetInput = document.getElementById('totalBudget');
-        const categoryBudgetInputs = document.querySelectorAll('.category-budget');
+        const categoryAllocations = document.querySelectorAll('.category-allocation');
+        const allocationRanges = document.querySelectorAll('.allocation-range');
+        const budgetSetter = document.getElementById('budgetSetter');
+        const budgetDashboard = document.getElementById('budgetDashboard');
         
-        if (saveBudgetBtn) {
-            saveBudgetBtn.addEventListener('click', handleSaveBudget);
-        }
-
-        // Add event listeners for total budget input
-        if (totalBudgetInput) {
-            totalBudgetInput.addEventListener('input', updateBudgetAllocation);
-        }
-
-        // Add event listeners for category budget inputs
-        categoryBudgetInputs.forEach(input => {
-            input.addEventListener('input', updateBudgetAllocation);
+        // Store original values
+        let originalTotalBudget = totalBudgetInput.value;
+        let originalAllocations = {};
+        
+        // Initialize original allocation values
+        categoryAllocations.forEach(input => {
+            originalAllocations[input.dataset.categoryId] = input.value;
         });
 
-        const editBudgetBtn = document.getElementById('editBudget');
         if (editBudgetBtn) {
             editBudgetBtn.addEventListener('click', () => {
-                document.getElementById('budgetSetter').style.display = 'block';
+                // Show budget setter and hide dashboard
+                budgetSetter.style.display = 'block';
+                budgetDashboard.style.display = 'none';
+                
+                // Store current values for potential cancellation
+                originalTotalBudget = totalBudgetInput.value;
+                categoryAllocations.forEach(input => {
+                    originalAllocations[input.dataset.categoryId] = input.value;
+                });
+                
+                // Scroll to budget setter
                 window.scrollTo({
-                    top: document.getElementById('budgetSetter').offsetTop - 20,
+                    top: budgetSetter.offsetTop - 20,
                     behavior: 'smooth'
                 });
             });
         }
-    }
 
-    function updateBudgetAllocation() {
-        const totalBudget = parseFloat(document.getElementById('totalBudget').value) || 0;
-        const categoryInputs = document.querySelectorAll('.category-budget');
-        let totalAllocated = 0;
+        if (totalBudgetInput) {
+            totalBudgetInput.addEventListener('input', updateAllocationLimits);
+        }
 
-        // Update each category's percentage and calculate total allocated
-        categoryInputs.forEach(input => {
-            const amount = parseFloat(input.value) || 0;
-            const percentage = totalBudget > 0 ? (amount / totalBudget) * 100 : 0;
-            input.nextElementSibling.textContent = `${percentage.toFixed(1)}%`;
-            totalAllocated += amount;
+        categoryAllocations.forEach(input => {
+            input.addEventListener('input', function() {
+                updateAllocationFromInput(this);
+                updateAllocationSummary();
+            });
         });
 
-        // Update summary
-        document.getElementById('totalAllocated').textContent = `₱${totalAllocated.toFixed(2)}`;
-        document.getElementById('remainingBudget').textContent = `₱${(totalBudget - totalAllocated).toFixed(2)}`;
-
-        // Visual feedback for over-allocation
-        const remainingBudget = totalBudget - totalAllocated;
-        const remainingElement = document.getElementById('remainingBudget');
-        if (remainingBudget < 0) {
-            remainingElement.style.color = 'var(--danger-color)';
-        } else {
-            remainingElement.style.color = '';
-        }
-    }
-
-    async function handleSaveBudget(event) {
-        event.preventDefault();
-        
-        const month = document.getElementById('currentMonth').value;
-        const totalBudget = Number(document.getElementById('totalBudget').value);
-        const categoryInputs = document.querySelectorAll('.category-budget');
-        
-        // Validate the budget input
-        if (isNaN(totalBudget) || totalBudget <= 0) {
-            showNotification('Please enter a valid budget amount greater than 0', 'error');
-            return;
-        }
-
-        // Collect category budgets
-        const categoryBudgets = Array.from(categoryInputs).map(input => ({
-            category_id: input.dataset.categoryId,
-            amount_limit: Number(input.value) || 0
-        }));
-
-        // Calculate total allocated
-        const totalAllocated = categoryBudgets.reduce((sum, cat) => sum + cat.amount_limit, 0);
-        
-        // Validate total allocation
-        if (totalAllocated > totalBudget) {
-            showNotification('Total category allocation cannot exceed the total budget', 'error');
-            return;
-        }
-
-        try {
-            // Save overall budget
-            const overallBudgetResponse = await fetch("{{ route('saveBudgets') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify({
-                    month: month,
-                    amount_limit: totalBudget,
-                    category_id: null
-                })
+        allocationRanges.forEach(range => {
+            range.addEventListener('input', function() {
+                updateAllocationFromRange(this);
+                updateAllocationSummary();
             });
+        });
 
-            if (!overallBudgetResponse.ok) {
-                throw new Error('Failed to save overall budget');
+        function updateAllocationFromInput(input) {
+            const categoryId = input.dataset.categoryId;
+            const amount = Number(input.value);
+            const totalBudget = Number(totalBudgetInput.value);
+            const percentage = totalBudget > 0 ? (amount / totalBudget * 100) : 0;
+            
+            const range = document.querySelector(`.allocation-range[data-category-id="${categoryId}"]`);
+            const percentageDisplay = range.parentElement.querySelector('.percentage');
+            
+            range.value = percentage;
+            percentageDisplay.textContent = `${Math.round(percentage)}%`;
+        }
+
+        function updateAllocationFromRange(range) {
+            const categoryId = range.dataset.categoryId;
+            const percentage = Number(range.value);
+            const totalBudget = Number(totalBudgetInput.value);
+            const amount = (percentage / 100) * totalBudget;
+            
+            const input = document.querySelector(`.category-allocation[data-category-id="${categoryId}"]`);
+            const percentageDisplay = range.parentElement.querySelector('.percentage');
+            
+            input.value = Math.round(amount);
+            percentageDisplay.textContent = `${Math.round(percentage)}%`;
+        }
+
+        function updateAllocationLimits() {
+            const totalBudget = Number(totalBudgetInput.value);
+            allocationRanges.forEach(range => {
+                range.max = 100;
+            });
+            updateAllocationSummary();
+        }
+
+        function updateAllocationSummary() {
+            const totalBudget = Number(totalBudgetInput.value);
+            const totalAllocated = Array.from(categoryAllocations)
+                .reduce((sum, input) => sum + Number(input.value), 0);
+            const remaining = totalBudget - totalAllocated;
+            
+            document.getElementById('totalAllocated').textContent = `₱${totalAllocated.toLocaleString()}`;
+            document.getElementById('remainingAllocation').textContent = `₱${remaining.toLocaleString()}`;
+            
+            // Update visual feedback
+            const remainingElement = document.getElementById('remainingAllocation');
+            if (remaining < 0) {
+                remainingElement.style.color = 'var(--danger-color)';
+            } else {
+                remainingElement.style.color = 'var(--text-primary)';
             }
+        }
 
-            // Save category budgets
-            for (const categoryBudget of categoryBudgets) {
-                if (categoryBudget.amount_limit > 0) {
-                    const categoryResponse = await fetch("{{ route('saveBudgets') }}", {
+        if (cancelBudgetBtn) {
+            cancelBudgetBtn.addEventListener('click', () => {
+                // Restore original values
+                totalBudgetInput.value = originalTotalBudget;
+                categoryAllocations.forEach(input => {
+                    const categoryId = input.dataset.categoryId;
+                    input.value = originalAllocations[categoryId];
+                    updateAllocationFromInput(input);
+                });
+                
+                // Hide budget setter and show dashboard
+                budgetSetter.style.display = 'none';
+                budgetDashboard.style.display = 'block';
+            });
+        }
+
+        if (saveBudgetBtn) {
+            saveBudgetBtn.addEventListener('click', async function() {
+                const totalBudget = Number(totalBudgetInput.value);
+                const totalAllocated = Array.from(categoryAllocations)
+                    .reduce((sum, input) => sum + Number(input.value), 0);
+                
+                if (totalAllocated > totalBudget) {
+                    showNotification('Total category allocations cannot exceed total budget', 'error');
+                    return;
+                }
+
+                const budgets = Array.from(categoryAllocations).map(input => ({
+                    category_id: parseInt(input.dataset.categoryId),
+                    amount_limit: Number(input.value)
+                }));
+
+                const requestData = {
+                    month: document.getElementById('currentMonth').value,
+                    amount_limit: totalBudget,
+                    budgets: budgets
+                };
+
+                console.log('Sending budget data:', requestData); // Debug log
+
+                try {
+                    const response = await fetch("{{ route('saveBudgets') }}", {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         },
-                        body: JSON.stringify({
-                            month: month,
-                            amount_limit: categoryBudget.amount_limit,
-                            category_id: categoryBudget.category_id
-                        })
+                        body: JSON.stringify(requestData)
                     });
 
-                    if (!categoryResponse.ok) {
-                        throw new Error('Failed to save category budget');
+                    const data = await response.json();
+                    console.log('Server response:', data); // Debug log
+
+                    if (data.success) {
+                        showNotification('Budget and allocations saved successfully!', 'success');
+                        // Hide budget setter and show dashboard
+                        budgetSetter.style.display = 'none';
+                        budgetDashboard.style.display = 'block';
+                        // Reload the page to reflect changes
+                        window.location.reload();
+                    } else {
+                        showNotification(data.message || 'Error saving budgets', 'error');
                     }
-                }
-            }
-
-            showNotification('Budget saved successfully!', 'success');
-            document.getElementById('budgetSetter').style.display = 'none';
-            document.getElementById('budgetDashboard').style.display = 'block';
-            
-            // Reload data dynamically
-            await loadDashboardData();
-        } catch (error) {
-            console.error('Error:', error);
-            showNotification(error.message || 'An error occurred. Please try again.', 'error');
-        }
-    }
-
-    // Function to load updated dashboard data
-    async function loadDashboardData() {
-        try {
-            const response = await fetch("{{ route('user.dashboard.data') }}", {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                } catch (error) {
+                    console.error('Error:', error);
+                    showNotification('An error occurred while saving budgets', 'error');
                 }
             });
-
-            if (!response.ok) {
-                throw new Error('Failed to load dashboard data');
-            }
-
-            const data = await response.json();
-            updateDashboard(data);
-            
-            // Update charts
-            if (window.spendingTrendChart) {
-                updateSpendingTrendChart(data.spendingTrend);
-            }
-            updateCategoryBreakdownChart();
-        } catch (error) {
-            console.error('Error loading dashboard data:', error);
-            showNotification('Failed to load updated data', 'error');
         }
     }
 
-    // Function to update the dashboard with new data
-    function updateDashboard(data) {
-        // Update budget display
-        document.querySelector('.stat-value').textContent = `₱${data.budget.toFixed(2)}`;
-        
-        // Update total expenses
-        document.querySelector('.budget-progress .progress-fill').style.width = `${(data.totalExpenses / data.budget) * 100}%`;
-        document.querySelector('.budget-progress .progress-labels span:first-child strong').textContent = `₱${data.totalExpenses.toFixed(2)}`;
-        document.querySelector('.budget-progress .progress-labels span:last-child strong').textContent = `₱${(data.budget - data.totalExpenses).toFixed(2)}`;
-
-        // Update category analysis
+    function initViewToggles() {
+        const viewButtons = document.querySelectorAll('.view-btn');
+        const chartView = document.getElementById('chartView');
         const categoryListView = document.getElementById('categoryListView');
-        categoryListView.innerHTML = ''; // Clear existing categories
 
-        data.categoryAnalysis.forEach(category => {
-            const categoryItem = document.createElement('div');
-            categoryItem.className = 'category-item';
-            categoryItem.innerHTML = `
-                <div class="category-color" style="background-color: ${category.color};"></div>
-                <span class="category-name">${category.name}</span>
-                <span class="category-amount">₱${category.spent.toFixed(2)}</span>
-                <span class="category-percent">${data.budget > 0 ? Math.round((category.spent / data.budget) * 100) : 0}%</span>
-            `;
-            categoryListView.appendChild(categoryItem);
+        viewButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                viewButtons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                chartView.style.display = this.dataset.view === 'chart' ? 'block' : 'none';
+                categoryListView.style.display = this.dataset.view === 'table' ? 'block' : 'none';
+            });
         });
-
-        // Update charts if necessary
-        // You can add more updates here based on the structure of your data
     }
 
     async function handleTransactionSubmit(e) {
@@ -554,140 +607,106 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function initCharts() {
-        // Spending Trend Chart
-        const trendCtx = document.getElementById('spendingTrendChart')?.getContext('2d');
-        if (trendCtx) {
-            window.spendingTrendChart = new Chart(trendCtx, {
-                type: 'line',
+        // Category Spending Chart
+        const spendingCtx = document.getElementById('categorySpendingChart')?.getContext('2d');
+        if (spendingCtx) {
+            const categoryNames = {!! json_encode(array_column($categoryData, 'name')) !!};
+            const categoryTotals = {!! json_encode(array_column($categoryData, 'total')) !!};
+            const categoryColors = {!! json_encode(array_column($categoryData, 'color')) !!};
+
+            window.categorySpendingChart = new Chart(spendingCtx, {
+                type: 'bar',
                 data: {
-                    labels: {!! json_encode($spendingTrendLabels ?? ['Jan', 'Feb', 'Mar', 'Apr', 'May']) !!},
+                    labels: categoryNames,
                     datasets: [{
                         label: 'Monthly Spending',
-                        data: {!! json_encode($spendingTrendData ?? [22000, 19500, 21000, 23000, 18000]) !!},
-                        backgroundColor: 'rgba(78, 121, 167, 0.1)',
-                        borderColor: 'rgba(78, 121, 167, 1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        pointBackgroundColor: '#fff',
-                        pointBorderColor: 'rgba(78, 121, 167, 1)',
-                        pointRadius: 4,
-                        pointHoverRadius: 6
+                        data: categoryTotals,
+                        backgroundColor: categoryColors,
+                        borderWidth: 0,
+                        borderRadius: 4
                     }]
                 },
-                options: getChartOptions('line')
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `₱${context.raw.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₱' + (value / 1000) + 'k';
+                                }
+                            }
+                        }
+                    }
+                }
             });
         }
 
         // Category Breakdown Chart
         const categoryCtx = document.getElementById('categoryBreakdownChart')?.getContext('2d');
-if (categoryCtx) {
-    // Extract names, totals, and colors from the categoryData array
-    const categoryNames = {!! json_encode(array_column($categoryData, 'name')) !!};
-    const categoryTotals = {!! json_encode(array_column($categoryData, 'total')) !!};
-    const categoryColors = {!! json_encode(array_column($categoryData, 'color')) !!};
+        if (categoryCtx) {
+            const categoryNames = {!! json_encode(array_column($categoryAnalysis, 'name')) !!};
+            const categoryTotals = {!! json_encode(array_column($categoryAnalysis, 'spent')) !!};
+            const categoryColors = {!! json_encode(array_column($categoryAnalysis, 'color')) !!};
+            const totalSpent = categoryTotals.reduce((a, b) => a + b, 0);
 
-    window.categoryBreakdownChart = new Chart(categoryCtx, {
-        type: 'doughnut',
-        data: {
-            labels: categoryNames, // Use the extracted names
-            datasets: [{
-                data: categoryTotals, // Use the extracted totals
-                backgroundColor: categoryColors, // Use the extracted colors
-                borderWidth: 0,
-                cutout: '70%'
-            }]
-        },
-        options: getChartOptions('doughnut')
-    });
-}
-
-
-
-        // Initialize time filter buttons
-        document.querySelectorAll('.time-btn').forEach(btn => {
-            btn.addEventListener('click', async function() {
-                document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                
-                try {
-                    const response = await fetch(`/api/spending-trend?period=${this.dataset.period}`);
-                    const data = await response.json();
-                    
-                    if (data.success && window.spendingTrendChart) {
-                        window.spendingTrendChart.data.labels = data.labels;
-                        window.spendingTrendChart.data.datasets[0].data = data.values;
-                        window.spendingTrendChart.update();
-                        
-                        updateTrendIndicator(data.trend);
+            window.categoryBreakdownChart = new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: categoryNames,
+                    datasets: [{
+                        data: categoryTotals,
+                        backgroundColor: categoryColors,
+                        borderWidth: 0,
+                        cutout: '70%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const percentage = Math.round((context.raw / totalSpent) * 100);
+                                    return `${context.label}: ₱${context.raw.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
                     }
-                } catch (error) {
-                    console.error('Error:', error);
-                    showNotification('Failed to load data', 'error');
                 }
             });
-        });
-    }
 
-    function getChartOptions(type) {
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: '#333',
-                    titleFont: { size: 14 },
-                    bodyFont: { size: 12 },
-                    padding: 12,
-                    displayColors: type === 'doughnut',
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.raw || 0;
-                            if (type === 'doughnut') {
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = Math.round((value / total) * 100);
-                                return `${label}: ₱${value.toLocaleString()} (${percentage}%)`;
-                            }
-                            return `${label}: ₱${value.toLocaleString()}`;
-                        }
-                    }
-                }
+            // Create custom legend
+            const legendContainer = document.getElementById('categoryChartLegend');
+            if (legendContainer) {
+                legendContainer.innerHTML = ''; // Clear existing legend
+                categoryNames.forEach((name, index) => {
+                    const percentage = Math.round((categoryTotals[index] / totalSpent) * 100);
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'legend-item';
+                    legendItem.innerHTML = `
+                        <span class="legend-color" style="background-color: ${categoryColors[index]}"></span>
+                        <span class="legend-label">${name}</span>
+                        <span class="legend-value">₱${categoryTotals[index].toLocaleString()} (${percentage}%)</span>
+                    `;
+                    legendContainer.appendChild(legendItem);
+                });
             }
-        };
-
-        if (type === 'line') {
-            commonOptions.scales = {
-                y: {
-                    beginAtZero: false,
-                    grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                    ticks: {
-                        callback: function(value) {
-                            return '₱' + (value / 1000) + 'k';
-                        }
-                    }
-                },
-                x: { grid: { display: false } }
-            };
-        }
-
-        return commonOptions;
-    }
-
-    function updateTrendIndicator(trend) {
-        const trendIndicator = document.querySelector('.trend-indicator');
-        if (!trendIndicator) return;
-        
-        const trendIcon = trendIndicator.querySelector('i');
-        const trendText = trendIndicator.querySelector('span');
-        
-        if (trend > 0) {
-            trendIcon.className = 'fas fa-arrow-up trend-up';
-            trendText.textContent = `${Math.abs(trend)}% higher than previous period`;
-        } else {
-            trendIcon.className = 'fas fa-arrow-down trend-down';
-            trendText.textContent = `${Math.abs(trend)}% lower than previous period`;
         }
     }
 
@@ -706,71 +725,6 @@ if (categoryCtx) {
                 notification.style.opacity = '1';
             }, 300);
         }, 4000);
-    }
-
-    function initViewToggles() {
-        const viewButtons = document.querySelectorAll('.view-btn');
-        const chartView = document.getElementById('chartView');
-        const categoryListView = document.getElementById('categoryListView');
-
-        viewButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                viewButtons.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                
-                if (this.dataset.view === 'chart') {
-                    chartView.style.display = 'block';
-                    categoryListView.style.display = 'none';
-                    // Update the chart with current data
-                    updateCategoryBreakdownChart();
-                } else {
-                    chartView.style.display = 'none';
-                    categoryListView.style.display = 'block';
-                }
-            });
-        });
-    }
-
-    function updateCategoryBreakdownChart() {
-        const categoryCtx = document.getElementById('categoryBreakdownChart')?.getContext('2d');
-        if (!categoryCtx) return;
-
-        // Get current category data from the list
-        const categoryItems = document.querySelectorAll('.category-item');
-        const categoryData = Array.from(categoryItems).map(item => ({
-            name: item.querySelector('.category-name').textContent,
-            total: parseFloat(item.querySelector('.category-amount').textContent.replace('₱', '').replace(/,/g, '')),
-            color: item.querySelector('.category-color').style.backgroundColor
-        }));
-
-        // Destroy existing chart if it exists
-        if (window.categoryBreakdownChart) {
-            window.categoryBreakdownChart.destroy();
-        }
-
-        // Create new chart
-        window.categoryBreakdownChart = new Chart(categoryCtx, {
-            type: 'doughnut',
-            data: {
-                labels: categoryData.map(cat => cat.name),
-                datasets: [{
-                    data: categoryData.map(cat => cat.total),
-                    backgroundColor: categoryData.map(cat => cat.color),
-                    borderWidth: 0,
-                    cutout: '70%'
-                }]
-            },
-            options: getChartOptions('doughnut')
-        });
-    }
-
-    // Add function to update spending trend chart
-    function updateSpendingTrendChart(data) {
-        if (!window.spendingTrendChart || !data) return;
-
-        window.spendingTrendChart.data.labels = data.labels;
-        window.spendingTrendChart.data.datasets[0].data = data.values;
-        window.spendingTrendChart.update();
     }
 });
 </script>

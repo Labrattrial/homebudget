@@ -3,11 +3,13 @@
 namespace Tests\Unit;
 
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Http\Controllers\SettingsController;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Hash;
 
 class SettingsTest extends TestCase
 {
@@ -15,6 +17,7 @@ class SettingsTest extends TestCase
 
     /** @var User */
     protected $user;
+    protected $controller;
 
     protected function setUp(): void
     {
@@ -23,6 +26,7 @@ class SettingsTest extends TestCase
         $this->user = User::factory()->create([
             'password' => Hash::make('oldPassword123')
         ]);
+        $this->controller = new SettingsController();
         $this->actingAs($this->user);
     }
 
@@ -315,5 +319,99 @@ class SettingsTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('id="confirmationDialog"', false);
         $response->assertSee('Confirm Action', false);
+    }
+
+    public function test_settings_page_returns_correct_view()
+    {
+        Auth::login($this->user);
+        $response = $this->get(route('user.settings'));
+        $response->assertStatus(200);
+        $response->assertViewIs('pages.settings');
+    }
+
+    public function test_update_profile_updates_user_profile()
+    {
+        Auth::login($this->user);
+        $updateData = [
+            'name' => 'Updated Name',
+            'email' => 'updated@example.com'
+        ];
+
+        $response = $this->post(route('settings.profile.update'), $updateData);
+        $response->assertStatus(200);
+        $response->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $this->user->id,
+            'name' => 'Updated Name',
+            'email' => 'updated@example.com'
+        ]);
+    }
+
+    public function test_update_password_updates_user_password()
+    {
+        Auth::login($this->user);
+        $updateData = [
+            'current_password' => 'password',
+            'new_password' => 'newpassword123',
+            'new_password_confirmation' => 'newpassword123'
+        ];
+
+        $response = $this->post(route('settings.password.update'), $updateData);
+        $response->assertStatus(200);
+        $response->assertJson(['success' => true]);
+
+        $this->assertTrue(Hash::check('newpassword123', $this->user->fresh()->password));
+    }
+
+    public function test_update_currency_updates_user_currency()
+    {
+        Auth::login($this->user);
+        $updateData = [
+            'currency' => 'EUR'
+        ];
+
+        $response = $this->post(route('settings.currency.update'), $updateData);
+        $response->assertStatus(200);
+        $response->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $this->user->id,
+            'currency' => 'EUR'
+        ]);
+    }
+
+    public function test_update_profile_validates_required_fields()
+    {
+        Auth::login($this->user);
+        $response = $this->post(route('settings.profile.update'), []);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['name', 'email']);
+    }
+
+    public function test_update_password_validates_current_password()
+    {
+        Auth::login($this->user);
+        $updateData = [
+            'current_password' => 'wrongpassword',
+            'new_password' => 'newpassword123',
+            'new_password_confirmation' => 'newpassword123'
+        ];
+
+        $response = $this->post(route('settings.password.update'), $updateData);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['current_password']);
+    }
+
+    public function test_update_currency_validates_currency_code()
+    {
+        Auth::login($this->user);
+        $updateData = [
+            'currency' => 'INVALID'
+        ];
+
+        $response = $this->post(route('settings.currency.update'), $updateData);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['currency']);
     }
 }

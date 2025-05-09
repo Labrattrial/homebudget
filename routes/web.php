@@ -30,6 +30,7 @@ Route::middleware('auth')->group(function () {
     // Dashboard
     Route::get('/dashboard', [MainDashboardController::class, 'showDashboard'])->name('user.dashboard');
     Route::get('/dashboard/data', [MainDashboardController::class, 'getDashboardData'])->name('user.dashboard.data'); 
+    Route::get('/budget-status', [MainDashboardController::class, 'getBudgetStatus'])->name('budget.status');
     Route::post('/dismiss-budget-warning', function() {
         session()->forget('budget_warning');
         return response()->json(['success' => true]);
@@ -95,5 +96,5 @@ Route::middleware('auth')->group(function () {
 
     // Budget Routes
     Route::post('/budgets', [MainDashboardController::class, 'saveBudgets'])->name('saveBudgets');
-    Route::get('/api/spending-trend', [MainDashboardController::class, 'getSpendingTrend']);
+    Route::get('/api/spending-trend', [MainDashboardController::class, 'getSpendingTrend'])->name('spending.trend');
 });
