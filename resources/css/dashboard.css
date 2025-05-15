@@ -1298,3 +1298,17 @@ body {
     gap: var(--space-xs);
   }
 }
+
+.btn-icon {
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.btn-icon:hover {
+  color: var(--primary-color);
+}
