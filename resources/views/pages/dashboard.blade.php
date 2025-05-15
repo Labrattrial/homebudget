@@ -127,9 +127,23 @@
             <div class="stat-value" id="totalBudgetDisplay">₱{{ number_format($budget, 2) }}</div>
             <div class="stat-progress">
               <div class="progress-bar">
-                <div class="progress-fill" id="budgetProgressFill" style="width: {{ $budget > 0 ? min(100, (array_sum(array_column($categoryAnalysis, 'spent')) / $budget) * 100) : 0 }}%"></div>
+                <div class="progress-fill" style="width: {{ $budget > 0 ? min(100, (array_sum(array_column($categoryAnalysis, 'spent')) / $budget) * 100) : 0 }}%"></div>
               </div>
-              <span class="stat-percent">{{ $budget > 0 ? round((array_sum(array_column($categoryAnalysis, 'spent')) / $budget) * 100) : 0 }}%</span>
+              <span class="stat-percent">
+                @php
+                  $totalSpent = array_sum(array_column($categoryAnalysis, 'spent'));
+                  $percentage = $budget > 0 ? ($totalSpent / $budget) * 100 : 0;
+                @endphp
+                @if($budget > 0)
+                  @if($percentage > 100)
+                    100% ({{ round($percentage - 100, 1) }}% over)
+                  @else
+                    {{ round($percentage, 1) }}%
+                  @endif
+                @else
+                  0%
+                @endif
+              </span>
             </div>
             <div class="stat-footer">
               @php
@@ -170,7 +184,7 @@
               <div class="progress-bar">
                 <div class="progress-fill" style="width: {{ $category['budget'] > 0 ? min(100, ($category['spent'] / $category['budget']) * 100) : 0 }}%"></div>
               </div>
-              <span class="stat-percent">{{ $category['budget'] > 0 ? round(($category['spent'] / $category['budget']) * 100) : 0 }}%</span>
+              <span class="stat-percent">{{ $category['budget'] > 0 ? min(100, round(($category['spent'] / $category['budget']) * 100)) : 0 }}%</span>
             </div>
             <div class="stat-footer">
               @if($category['budget'] > 0)
@@ -282,7 +296,7 @@
           <div class="progress-bar">
             <div class="progress-fill" style="width: {{ $category['budget'] > 0 ? min(100, ($category['spent'] / $category['budget']) * 100) : 0 }}%"></div>
           </div>
-          <span class="stat-percent">{{ $category['budget'] > 0 ? round(($category['spent'] / $category['budget']) * 100) : 0 }}%</span>
+          <span class="stat-percent">{{ $category['budget'] > 0 ? min(100, round(($category['spent'] / $category['budget']) * 100)) : 0 }}%</span>
         </div>
         <div class="stat-footer">
           @if($category['budget'] > 0)
@@ -442,7 +456,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const categoryId = input.dataset.categoryId;
             const amount = Number(input.value);
             const totalBudget = Number(totalBudgetInput.value);
-            const percentage = totalBudget > 0 ? (amount / totalBudget * 100) : 0;
+            const percentage = totalBudget > 0 ? Math.min(100, (amount / totalBudget * 100)) : 0;
             
             const range = document.querySelector(`.allocation-range[data-category-id="${categoryId}"]`);
             const percentageDisplay = range.parentElement.querySelector('.percentage');

@@ -128,10 +128,10 @@ body {
 
 .expense-icons {
   position: absolute;
-  top: 15px;
-  right: 15px;
+  top: 8px;
+  right: 8px;
   display: flex;
-  gap: 12px;
+  gap: 4px;
   opacity: 0;
   transform: translateX(10px);
   transition: all 0.3s ease;
@@ -147,31 +147,27 @@ body {
   cursor: pointer;
   color: #4b8dbf;
   transition: all 0.2s ease;
-  font-size: 1.1rem;
-  width: 32px;
-  height: 32px;
+  font-size: 0.75rem;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background-color: rgba(75, 141, 191, 0.1);
+  background: none;
 }
 
 .delete-icon {
   color: #e74c3c;
-  background-color: rgba(231, 76, 60, 0.1);
 }
 
 .delete-icon:hover {
-  color: #fff;
-  background-color: #e74c3c;
-  transform: scale(1.1);
+  color: #e74c3c;
+  transform: scale(1.5);
 }
 
 .edit-icon:hover {
-  color: #fff;
-  background-color: #4b8dbf;
-  transform: scale(1.1);
+  color: #4b8dbf;
+  transform: scale(1.5);
 }
 
 .expense-card .amount {

@@ -662,18 +662,25 @@ function updateCharts(data) {
 
     // Update budget progress
     if (data.budgetAmount > 0) {
-        const progress = (data.totalSpending / data.budgetAmount) * 100;
-        $('#budgetProgressFill').css('width', `${Math.min(progress, 100)}%`);
-        $('#budgetProgressText').text(`${progress.toFixed(1)}% of Budget`);
+        const actualProgress = (data.totalSpending / data.budgetAmount) * 100;
+        const progress = Math.min(100, actualProgress);
+        $('#budgetProgressFill').css('width', `${progress}%`);
+        
+        // Update progress text to show actual percentage if over budget
+        if (actualProgress > 100) {
+            $('#budgetProgressText').text(`100% of Budget (${(actualProgress - 100).toFixed(1)}% over)`);
+        } else {
+            $('#budgetProgressText').text(`${progress.toFixed(1)}% of Budget`);
+        }
         
         // Update progress bar color based on utilization
         const progressFill = $('#budgetProgressFill');
-        if (progress > 90) {
-            progressFill.css('background-color', '#dc3545');
-        } else if (progress > 70) {
-            progressFill.css('background-color', '#ffc107');
+        if (actualProgress > 100) {
+            progressFill.css('background-color', '#dc3545'); // Red for over budget
+        } else if (progress > 90) {
+            progressFill.css('background-color', '#ffc107'); // Yellow for near limit
         } else {
-            progressFill.css('background-color', '#28a745');
+            progressFill.css('background-color', '#28a745'); // Green for good
         }
     }
 
