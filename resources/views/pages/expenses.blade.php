@@ -112,7 +112,7 @@
         <p><strong>Category:</strong> <span class="category">{{ $expense->category->name }}</span></p>
         <p><strong>Specs:</strong> <span class="specs">{{ $expense->description }}</span></p>
         <p><strong>Total Expense:</strong> <span class="amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($expense->amount, 2) }}</span></p>
-        <p><strong>Date:</strong> <span class="date">{{ $expense->date }}</span></p>
+        <p><strong>Date:</strong> <span class="date">{{ \Carbon\Carbon::parse($expense->date)->format('m/d/Y') }}</span></p>
       </div>
     @endforeach
   </div>
@@ -166,7 +166,7 @@
           </div>
 
           <div id="newSpecsContainer" class="form-group" style="display: none;">
-            <input type="text" id="newSpecsInput" name="new_specs" placeholder="Enter new specs" required onchange="validateField(this)" />
+            <input type="text" id="newSpecsInput" name="new_specs" placeholder="Enter new specs (optional)" />
             <div class="error-message" id="error-new_specs"></div>
           </div>
         </div>
@@ -182,7 +182,7 @@
 
         <div class="form-group">
           <label for="modalDate">Date:</label>
-          <input type="date" name="date" id="modalDate" required onchange="validateField(this)" />
+          <input type="date" name="date" id="modalDate" required onchange="validateField(this)" max="{{ date('Y-m-d') }}" />
           <div class="error-message" id="error-date"></div>
         </div>
 
@@ -337,7 +337,19 @@
     document.getElementById("modalTitle").innerText = "Add New Expense";
     document.getElementById("modalCategory").value = '';
     document.getElementById("modalAmount").value = '';
-    document.getElementById("modalDate").value = '';
+    
+    // Set current date in the date picker
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayFormatted = `${year}-${month}-${day}`;
+    
+    // Set the date picker value and max date
+    const datePicker = document.getElementById("modalDate");
+    datePicker.value = todayFormatted;
+    datePicker.max = todayFormatted;
+    
     document.getElementById("modalSpecs").value = '';
     document.getElementById("newSpecsInput").value = '';
     document.getElementById("expenseModal").style.display = "flex";
@@ -374,7 +386,7 @@
       existingContainer.style.display = 'none';
       newContainer.style.display = 'block';
       existingSelect.required = false;
-      newInput.required = true;
+      newInput.required = false; // Make new input optional
       existingSelect.value = ''; // Clear select when switching
     }
   }
@@ -386,6 +398,11 @@
     // Remove existing validation classes
     formGroup.classList.remove('error', 'success');
     errorElement.textContent = '';
+
+    // Skip validation for optional new specs input
+    if (field.id === 'newSpecsInput') {
+      return true;
+    }
 
     // Validate required fields
     if (field.required && !field.value) {
@@ -408,6 +425,8 @@
     if (field.type === 'date') {
       const selectedDate = new Date(field.value);
       const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time part for accurate comparison
+      
       if (selectedDate > today) {
         formGroup.classList.add('error');
         errorElement.textContent = 'Date cannot be in the future';
@@ -425,7 +444,15 @@
     const fields = form.querySelectorAll('input[required], select[required]');
     let isValid = true;
 
+    // Check which specs option is selected
+    const specsOption = document.querySelector('input[name="specs_option"]:checked');
+    const isNewSpecs = specsOption && specsOption.value === 'new';
+
     fields.forEach(field => {
+      // Skip validation for new specs input if it's not being used
+      if (field.id === 'newSpecsInput' && !isNewSpecs) {
+        return;
+      }
       if (!validateField(field)) {
         isValid = false;
       }
@@ -446,6 +473,7 @@
     const submitButton = document.getElementById('submitButton');
     const buttonText = document.getElementById('buttonText');
     const spinner = submitButton.querySelector('.spinner');
+    const modal = document.getElementById("expenseModal");
     
     // Show loading state
     isLoading = true;
@@ -483,7 +511,11 @@
       
       if (data.success) {
         showCustomConfirmation('Expense saved successfully!', true);
-        closeModal();
+        
+        // Reset form and close modal
+        this.reset();
+        modal.style.display = "none";
+        modal.setAttribute('aria-hidden', 'true');
         
         // Add the new expense card
         if (data.expense) {
@@ -517,6 +549,14 @@
     card.className = 'expense-card';
     card.setAttribute('data-id', expense.id);
     card.setAttribute('data-category', expense.category_id);
+    
+    // Format the date to show actual numbers
+    const date = new Date(expense.date);
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const formattedDate = `${month}/${day}/${year}`;
+    
     card.innerHTML = `
       <div class="expense-icons">
         <i class="fas fa-edit edit-icon" onclick="editCard(this)" title="Edit" data-id="${expense.id}"></i>
@@ -525,7 +565,7 @@
       <p><strong>Category:</strong> <span class="category">${expense.category.name}</span></p>
       <p><strong>Specs:</strong> <span class="specs">${expense.description}</span></p>
       <p><strong>Total Expense:</strong> <span class="amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>${parseFloat(expense.amount).toFixed(2)}</span></p>
-      <p><strong>Date:</strong> <span class="date">${expense.date}</span></p>
+      <p><strong>Date:</strong> <span class="date">${formattedDate}</span></p>
     `;
     return card;
   }
@@ -569,37 +609,53 @@
     
     const id = button.getAttribute('data-id');
     const card = button.closest('.expense-card');
+    
+    // Get all required data at once
     const category = card.querySelector('.category').textContent;
     const specs = card.querySelector('.specs').textContent;
-    const amount = card.querySelector('.amount').textContent.replace('₱', '').replace(/,/g, '');
-    const date = card.querySelector('.date').textContent;
+    const amount = card.querySelector('.amount').textContent.replace(/[₱,]/g, '');
+    const dateText = card.querySelector('.date').textContent;
 
+    // Set modal title and ID immediately
     editingId = id;
     document.getElementById("modalTitle").innerText = "Edit Expense";
     
-    // Set form values
+    // Get form elements once
     const categorySelect = document.getElementById("modalCategory");
     const specsSelect = document.getElementById("modalSpecs");
-    
-    // Find and select the correct category
+    const existingSpecsRadio = document.getElementById('existingSpecs');
+    const newSpecsRadio = document.getElementById('newSpecs');
+    const existingSpecsContainer = document.getElementById('existingSpecsContainer');
+    const newSpecsContainer = document.getElementById('newSpecsContainer');
+    const newSpecsInput = document.getElementById('newSpecsInput');
+    const modalAmount = document.getElementById("modalAmount");
+    const modalDate = document.getElementById("modalDate");
+    const modal = document.getElementById("expenseModal");
+
+    // Set category value
     Array.from(categorySelect.options).forEach(option => {
       if (option.text === category) {
         categorySelect.value = option.value;
       }
     });
 
-    // Set the specs option based on whether the specs exist in the dropdown
-    const existingSpecsRadio = document.getElementById('existingSpecs');
-    const newSpecsRadio = document.getElementById('newSpecs');
-    const existingSpecsContainer = document.getElementById('existingSpecsContainer');
-    const newSpecsContainer = document.getElementById('newSpecsContainer');
-    const newSpecsInput = document.getElementById('newSpecsInput');
+    // Show modal immediately
+    modal.style.display = "flex";
+    modal.setAttribute('aria-hidden', 'false');
+
+    // Set amount and date immediately
+    modalAmount.value = amount;
+    
+    // Convert MM/DD/YYYY to YYYY-MM-DD for the date picker
+    const [month, day, year] = dateText.split('/');
+    const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    modalDate.value = formattedDate;
 
     try {
-      // Fetch specs for the selected category
-      await fetchSpecsByCategory(categorySelect.value);
+      // Fetch specs in parallel with UI updates
+      const specsPromise = fetchSpecsByCategory(categorySelect.value);
       
-      // Check if the specs exist in the dropdown
+      // Check if specs exist in current options
       const specsExists = Array.from(specsSelect.options).some(option => option.text === specs);
       
       if (specsExists) {
@@ -615,15 +671,25 @@
         newSpecsInput.value = specs;
         specsSelect.value = '';
       }
+
+      // Wait for specs to load
+      await specsPromise;
+      
+      // Update specs select with new options if needed
+      if (!specsExists) {
+        const newSpecsExists = Array.from(specsSelect.options).some(option => option.text === specs);
+        if (newSpecsExists) {
+          existingSpecsRadio.checked = true;
+          existingSpecsContainer.style.display = 'block';
+          newSpecsContainer.style.display = 'none';
+          specsSelect.value = specs;
+          newSpecsInput.value = '';
+        }
+      }
     } catch (error) {
       console.error('Error in editCard:', error);
       showCustomConfirmation('Error loading expense details', false);
     }
-
-    document.getElementById("modalAmount").value = amount;
-    document.getElementById("modalDate").value = date;
-    document.getElementById("expenseModal").style.display = "flex";
-    document.getElementById("expenseModal").setAttribute('aria-hidden', 'false');
   }
 
   async function deleteCard(button) {

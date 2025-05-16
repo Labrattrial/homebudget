@@ -82,29 +82,20 @@
             </h3>
             <div class="form-group">
                 <label for="currency" class="form-label">Select Currency</label>
-                <div class="currency-grid">
+                <select name="currency" id="currency" class="form-control" required>
                     @php
                         $currencies = \App\Helpers\CurrencyHelper::getAllCurrencies();
                         $currentCurrency = Auth::user()->currency;
                     @endphp
-                    
                     @foreach($currencies as $code)
                         @php
                             $currencyInfo = \App\Helpers\CurrencyHelper::getCurrencyInfo($code);
                         @endphp
-                        <label class="currency-card {{ $currentCurrency === $code ? 'selected' : '' }}">
-                            <input type="radio" 
-                                   name="currency" 
-                                   value="{{ $code }}" 
-                                   {{ $currentCurrency === $code ? 'checked' : '' }}>
-                            <div class="currency-content">
-                                <span class="currency-symbol">{{ $currencyInfo['symbol'] }}</span>
-                                <span class="currency-name">{{ $currencyInfo['name'] }}</span>
-                                <span class="currency-code">{{ $code }}</span>
-                            </div>
-                        </label>
+                        <option value="{{ $code }}" {{ $currentCurrency === $code ? 'selected' : '' }}>
+                            {{ $currencyInfo['symbol'] }} {{ $currencyInfo['name'] }} ({{ $code }})
+                        </option>
                     @endforeach
-                </div>
+                </select>
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary" id="currencySubmitBtn">
@@ -218,6 +209,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
+
+    // Initialize toggles
+    setupToggle('new_password', 'toggle-password');
+    setupToggle('confirm_password', 'toggle-confirm-password');
 
     // Password Strength Meter
     function checkPasswordStrength(password) {
@@ -406,10 +401,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Initialize toggles
-    setupToggle('new_password', 'toggle-password');
-    setupToggle('confirm_password', 'toggle-confirm-password');
-
     // Initialize strength meter
     const passwordInput = document.getElementById('new_password');
     if (passwordInput) {
@@ -595,206 +586,6 @@ document.addEventListener('DOMContentLoaded', function() {
             notification.style.display = 'none';
         }, 300);
     }
-
-    // Update currency form handling
-    document.addEventListener('DOMContentLoaded', function() {
-        const currencyForm = document.getElementById('currencyForm');
-        const currencySubmitBtn = document.getElementById('currencySubmitBtn');
-
-        if (currencyForm && currencySubmitBtn) {
-            currencyForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                const selectedCurrency = document.querySelector('input[name="currency"]:checked');
-                if (!selectedCurrency) {
-                    showNotification('Please select a currency', 'error');
-                    return;
-                }
-
-                try {
-                    setLoadingState('currencyForm', true);
-                    
-                    const formData = new FormData(currencyForm);
-                    const response = await fetch(currencyForm.action, {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                            'Accept': 'application/json'
-                        },
-                        body: formData
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-
-                    const data = await response.json();
-                    setLoadingState('currencyForm', false);
-                    
-                    if (data.success) {
-                        // Update localStorage
-                        localStorage.setItem('userCurrency', data.currency);
-                        localStorage.setItem('userCurrencySymbol', data.currencySymbol);
-                        localStorage.setItem('userCurrencyName', data.currencyName);
-                        
-                        // Update all currency displays
-                        document.querySelectorAll('.currency').forEach(el => {
-                            el.textContent = data.currencySymbol;
-                        });
-                        
-                        // Update the selected currency card
-                        document.querySelectorAll('.currency-card').forEach(card => {
-                            card.classList.remove('selected');
-                            if (card.querySelector('input[type="radio"]').value === data.currency) {
-                                card.classList.add('selected');
-                            }
-                        });
-                        
-                        // Show success notification
-                        const notification = document.getElementById('notificationCard');
-                        const messageEl = notification.querySelector('.notification-message');
-                        const icon = notification.querySelector('.notification-icon');
-                        
-                        messageEl.textContent = data.message;
-                        icon.className = 'fas fa-check-circle notification-icon';
-                        notification.style.display = 'flex';
-                        setTimeout(() => notification.classList.add('show'), 10);
-                        
-                        // Auto hide after 3 seconds
-                        setTimeout(() => {
-                            notification.classList.remove('show');
-                            setTimeout(() => {
-                                notification.style.display = 'none';
-                            }, 300);
-                        }, 3000);
-
-                        // Trigger a custom event to notify other components
-                        window.dispatchEvent(new CustomEvent('currencyUpdated', {
-                            detail: {
-                                currency: data.currency,
-                                symbol: data.currencySymbol,
-                                name: data.currencyName
-                            }
-                        }));
-
-                        // Update any amount displays that need to be converted
-                        document.querySelectorAll('[data-amount]').forEach(el => {
-                            const amount = parseFloat(el.dataset.amount);
-                            if (!isNaN(amount)) {
-                                // Convert amount to new currency if needed
-                                const oldCurrency = el.dataset.currency || 'PHP';
-                                if (oldCurrency !== data.currency) {
-                                    try {
-                                        const convertedAmount = await convertAmount(amount, oldCurrency, data.currency);
-                                        el.textContent = data.currencySymbol + convertedAmount.toLocaleString('en-US', {
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 2
-                                        });
-                                        el.dataset.currency = data.currency;
-                                    } catch (error) {
-                                        console.error('Error converting amount:', error);
-                                    }
-                                }
-                            }
-                        });
-                    } else {
-                        // Show error notification
-                        const notification = document.getElementById('notificationCard');
-                        const messageEl = notification.querySelector('.notification-message');
-                        const icon = notification.querySelector('.notification-icon');
-                        
-                        messageEl.textContent = data.message;
-                        icon.className = 'fas fa-exclamation-circle notification-icon';
-                        notification.style.display = 'flex';
-                        setTimeout(() => notification.classList.add('show'), 10);
-                        
-                        // Auto hide after 3 seconds
-                        setTimeout(() => {
-                            notification.classList.remove('show');
-                            setTimeout(() => {
-                                notification.style.display = 'none';
-                            }, 300);
-                        }, 3000);
-                    }
-                } catch (error) {
-                    setLoadingState('currencyForm', false);
-                    // Show error notification
-                    const notification = document.getElementById('notificationCard');
-                    const messageEl = notification.querySelector('.notification-message');
-                    const icon = notification.querySelector('.notification-icon');
-                    
-                    messageEl.textContent = 'An error occurred while updating your currency';
-                    icon.className = 'fas fa-exclamation-circle notification-icon';
-                    notification.style.display = 'flex';
-                    setTimeout(() => notification.classList.add('show'), 10);
-                    
-                    // Auto hide after 3 seconds
-                    setTimeout(() => {
-                        notification.classList.remove('show');
-                        setTimeout(() => {
-                            notification.style.display = 'none';
-                        }, 300);
-                    }, 3000);
-                    
-                    console.error('Error:', error);
-                }
-            });
-        }
-
-        // Helper function to convert amounts between currencies
-        async function convertAmount(amount, fromCurrency, toCurrency) {
-            try {
-                const response = await fetch(`/api/exchange-rate?from=${fromCurrency}&to=${toCurrency}`, {
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                        'Accept': 'application/json'
-                    }
-                });
-                if (!response.ok) throw new Error('Failed to get exchange rate');
-                
-                const data = await response.json();
-                if (!data.success) throw new Error(data.message);
-                
-                return amount * data.rate;
-            } catch (error) {
-                console.error('Error converting amount:', error);
-                return amount; // Return original amount if conversion fails
-            }
-        }
-    });
-
-    // Listen for currency updates
-    window.addEventListener('currencyUpdated', function(e) {
-        const { currency, symbol, name } = e.detail;
-        
-        // Update all currency displays
-        document.querySelectorAll('.currency').forEach(el => {
-            el.textContent = symbol;
-        });
-        
-        // Update any amount displays that need to be converted
-        document.querySelectorAll('[data-amount]').forEach(el => {
-            const amount = parseFloat(el.dataset.amount);
-            if (!isNaN(amount)) {
-                el.textContent = symbol + amount.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-            }
-        });
-    });
-
-    // Add click handlers for currency cards
-    document.querySelectorAll('.currency-card').forEach(card => {
-        card.addEventListener('click', function() {
-            // Remove selected class from all cards
-            document.querySelectorAll('.currency-card').forEach(c => c.classList.remove('selected'));
-            // Add selected class to clicked card
-            this.classList.add('selected');
-            // Check the radio input
-            this.querySelector('input[type="radio"]').checked = true;
-        });
-    });
 
     // Show any server-side messages
     if (serverMessages.success) {
@@ -1043,3 +834,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endsection
+
+@yield('scripts')

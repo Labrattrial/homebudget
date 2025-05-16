@@ -105,48 +105,15 @@ class SettingsController extends Controller
 
     public function updateCurrency(Request $request)
     {
+        $request->validate([
+            'currency' => 'required|in:' . implode(',', \App\Helpers\CurrencyHelper::getAllCurrencies()),
+        ]);
+
         $user = Auth::user();
+        $user->currency = $request->currency;
+        $user->save();
 
-        if (!$user || !$user instanceof \App\Models\User) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Authenticated user is not valid.'
-            ], 401);
-        }
-
-        try {
-            $request->validate([
-                'currency' => ['required', 'string', 'size:3'],
-            ]);
-
-            $validCurrencies = ['PHP', 'USD', 'EUR', 'GBP', 'JPY', 'AUD'];
-            if (!in_array($request->currency, $validCurrencies)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid currency selected.'
-                ], 422);
-            }
-
-            DB::transaction(function () use ($request, $user) {
-                $user->currency = $request->currency;
-                $user->save();
-            });
-
-            $currencySymbol = \App\Helpers\CurrencyHelper::getCurrencySymbol($request->currency);
-            $currencyName = \App\Helpers\CurrencyHelper::getCurrencyName($request->currency);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Currency updated successfully! Your amounts will now be displayed in ' . $currencyName . ' (' . $currencySymbol . ')',
-                'currency' => $user->currency,
-                'currencySymbol' => $currencySymbol,
-                'currencyName' => $currencyName
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update currency: ' . $e->getMessage()
-            ], 500);
-        }
+        // Redirect back with a success message
+        return redirect()->back()->with('success', 'Currency updated successfully!');
     }
 }

@@ -557,7 +557,12 @@ function initializeCharts() {
             scales: {
                 x: { 
                     title: { display: true, text: 'Date' },
-                    grid: { display: false }
+                    grid: { display: false },
+                    ticks: {
+                        autoSkip: false,
+                        maxRotation: 90,
+                        minRotation: 45
+                    }
                 },
                 y: { 
                     title: { display: true, text: 'Amount ({{ Auth::user()->currency_symbol }})' }, 

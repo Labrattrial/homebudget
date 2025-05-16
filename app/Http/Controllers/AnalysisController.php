@@ -198,21 +198,25 @@ class AnalysisController extends Controller
         // Fill missing dates with 0
         $trendData = [];
         $currentDate = clone $startDate;
+        $endDate = clone $endDate;
+        $endDate->setTime(23, 59, 59); // Set to end of day
 
         while ($currentDate <= $endDate) {
             $dateString = $currentDate->format($viewType === 'monthly' ? 'Y-m' : 'Y-m-d');
             $trendData[$dateString] = $transactions[$dateString] ?? 0;
             
-            switch ($viewType) {
-                case 'daily':
-                    $currentDate->addDay();
-                    break;
-                case 'weekly':
-                    $currentDate->addWeek();
-                    break;
-                case 'monthly':
-                    $currentDate->addMonth();
-                    break;
+            // Always increment by one day for daily view
+            if ($viewType === 'daily') {
+                $currentDate->addDay();
+            } else {
+                switch ($viewType) {
+                    case 'weekly':
+                        $currentDate->addWeek();
+                        break;
+                    case 'monthly':
+                        $currentDate->addMonth();
+                        break;
+                }
             }
         }
 
