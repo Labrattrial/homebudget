@@ -34,11 +34,11 @@
       <input type="hidden" id="currentMonth" value="{{ date('Y-m') }}">
       
       <div class="input-group">
-          <label for="totalBudget">Total Monthly Budget</label>
-          <div class="input-field">
-              <span class="currency">₱</span>
-              <input type="number" id="totalBudget" name="amount_limit" placeholder="e.g. 25,000" min="0" step="100" required>
-          </div>
+        <label for="totalBudget">Total Monthly Budget</label>
+        <div class="input-field">
+          <span class="currency">₱</span>
+          <input type="number" id="totalBudget" name="amount_limit" placeholder="e.g. 25,000" min="0" step="100" required>
+        </div>
       </div>
 
       <div class="category-budget-setter">
@@ -52,10 +52,13 @@
 
         <div class="category-allocation-list">
           @foreach($categoryAnalysis as $category)
-          <div class="category-allocation-item">
-            <div class="category-info">
-              <div class="category-color" style="background-color: {{ $category['color'] }};"></div>
-              <span class="category-name">{{ $category['name'] }}</span>
+          <div class="category-budget-item">
+            <div class="category-budget-header">
+              <div class="category-info">
+                <div class="category-color" style="background-color: {{ $category['color'] }};"></div>
+                <span class="category-name">{{ $category['name'] }}</span>
+              </div>
+              <span class="category-amount">₱<span class="category-allocation-display">0.00</span></span>
             </div>
             <div class="allocation-controls">
               <div class="allocation-input">
@@ -66,7 +69,7 @@
                        placeholder="0"
                        min="0"
                        step="100"
-                       value="{{ $category['budget'] }}">
+                       value="0">
               </div>
               <div class="allocation-slider">
                 <input type="range" 
@@ -78,6 +81,15 @@
                        value="{{ $category['budget'] > 0 ? ($category['budget'] / $budget * 100) : 0 }}">
                 <span class="percentage">0%</span>
               </div>
+            </div>
+            <div class="stat-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: 0%"></div>
+              </div>
+              <span class="stat-percent">0%</span>
+            </div>
+            <div class="stat-footer">
+              <span class="stat-remaining">₱0.00 left</span>
             </div>
           </div>
           @endforeach

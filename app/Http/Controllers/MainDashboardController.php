@@ -133,15 +133,37 @@ private function getCategoryAnalysis($user, $transactions)
         \Log::info('Received budget save request:', $request->all());
 
         try {
+            // First validate the basic structure
             $validated = $request->validate([
                 'month' => 'required|date_format:Y-m',
                 'amount_limit' => 'required|numeric|min:0',
-                'budgets' => 'required|array',
+                'budgets' => 'required|array|min:1', // Ensure at least one category budget
                 'budgets.*.category_id' => 'required|exists:categories,id',
                 'budgets.*.amount_limit' => 'required|numeric|min:0'
             ]);
 
-            \Log::info('Validated data:', $validated);
+            // Calculate total allocated amount
+            $totalAllocated = collect($validated['budgets'])->sum('amount_limit');
+            
+            // Validate that total allocated doesn't exceed total budget
+            if ($totalAllocated > $validated['amount_limit']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Total category allocations cannot exceed total budget'
+                ], 422);
+            }
+
+            // Validate that at least one category has a non-zero allocation
+            $hasNonZeroAllocation = collect($validated['budgets'])->contains(function ($budget) {
+                return $budget['amount_limit'] > 0;
+            });
+
+            if (!$hasNonZeroAllocation) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please allocate amounts to at least one category'
+                ], 422);
+            }
 
             \DB::beginTransaction();
 
@@ -187,6 +209,17 @@ private function getCategoryAnalysis($user, $transactions)
                 'message' => 'Budget saved successfully!'
             ]);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \DB::rollBack();
+            \Log::error('Budget validation failed:', [
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . collect($e->errors())->first()[0]
+            ], 422);
         } catch (\Exception $e) {
             \DB::rollBack();
             \Log::error('Budget save failed:', [
