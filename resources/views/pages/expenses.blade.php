@@ -51,6 +51,118 @@
     opacity: 0;
     transform: translateX(20px);
   }
+
+  .save-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .save-btn:hover:not(:disabled) {
+    background-color: #45a049;
+  }
+
+  .save-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .save-btn .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #ffffff;
+    animation: spin 0.8s ease-in-out infinite;
+    display: none;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .modal-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .modal-loading.show {
+    display: flex;
+  }
+
+  .modal-loading .spinner {
+    width: 50px;
+    height: 50px;
+    position: relative;
+  }
+
+  .modal-loading .loading-text {
+    color: #4CAF50;
+    font-size: 16px;
+    font-weight: 500;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+  }
+
+  .modal-loading .spinner:before,
+  .modal-loading .spinner:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: #4CAF50;
+  }
+
+  .modal-loading .spinner:before {
+    animation: spin 1.5s linear infinite;
+  }
+
+  .modal-loading .spinner:after {
+    border-top-color: #45a049;
+    animation: spin 2s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
 </style>
 
 <div class="expenses-wrapper">
@@ -127,6 +239,7 @@
       </h2>
       <div class="modal-loading">
         <div class="spinner"></div>
+        <div class="loading-text">Loading...</div>
       </div>
       <form id="expenseForm" novalidate>
         @csrf
@@ -386,7 +499,7 @@
       existingContainer.style.display = 'none';
       newContainer.style.display = 'block';
       existingSelect.required = false;
-      newInput.required = false; // Make new input optional
+      newInput.required = true; // Make new input required when "Add New" is selected
       existingSelect.value = ''; // Clear select when switching
     }
   }
@@ -399,8 +512,14 @@
     formGroup.classList.remove('error', 'success');
     errorElement.textContent = '';
 
-    // Skip validation for optional new specs input
+    // Handle new specs input validation
     if (field.id === 'newSpecsInput') {
+      const newSpecsRadio = document.getElementById('newSpecs');
+      if (newSpecsRadio.checked && !field.value.trim()) {
+        formGroup.classList.add('error');
+        errorElement.textContent = 'Please enter new specs';
+        return false;
+      }
       return true;
     }
 
@@ -425,7 +544,7 @@
     if (field.type === 'date') {
       const selectedDate = new Date(field.value);
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Reset time part for accurate comparison
+      today.setHours(23, 59, 59, 999); // Set to end of current day for comparison
       
       if (selectedDate > today) {
         formGroup.classList.add('error');
@@ -457,6 +576,14 @@
         isValid = false;
       }
     });
+
+    // Additional validation for new specs input when selected
+    if (isNewSpecs) {
+      const newSpecsInput = document.getElementById('newSpecsInput');
+      if (!validateField(newSpecsInput)) {
+        isValid = false;
+      }
+    }
 
     return isValid;
   }
@@ -517,16 +644,28 @@
         modal.style.display = "none";
         modal.setAttribute('aria-hidden', 'true');
         
-        // Add the new expense card
         if (data.expense) {
-          const newExpenseCard = createExpenseCard(data.expense);
-          document.getElementById('recentExpensesGrid').prepend(newExpenseCard);
+          if (editingId) {
+            // Update existing card
+            const existingCard = document.querySelector(`.expense-card[data-id="${editingId}"]`);
+            if (existingCard) {
+              const updatedCard = createExpenseCard(data.expense);
+              existingCard.replaceWith(updatedCard);
+            }
+          } else {
+            // Add new card
+            const newExpenseCard = createExpenseCard(data.expense);
+            document.getElementById('recentExpensesGrid').prepend(newExpenseCard);
+          }
         }
         
         // Update summary if data is available
         if (data.totalExpenses !== undefined && data.categoryBreakdown) {
           updateSummaryAfterDelete(data.totalExpenses, data.categoryBreakdown);
         }
+
+        // Reset editingId after successful save
+        editingId = null;
       } else {
         showValidationErrors(data.errors || {});
         showCustomConfirmation('Please check the form for errors', false);

@@ -63,13 +63,12 @@
             <div class="allocation-controls">
               <div class="allocation-input">
                 <span class="currency">{{ Auth::user()->currency_symbol }}</span>
-                <input type="number" 
+                <input type="text" 
                        class="category-allocation" 
                        data-category-id="{{ $category['id'] }}"
                        placeholder="0"
-                       min="0"
-                       step="100"
-                       value="0">
+                       value="0"
+                       inputmode="decimal">
               </div>
               <div class="allocation-slider">
                 <input type="range" 
@@ -77,8 +76,8 @@
                        data-category-id="{{ $category['id'] }}"
                        min="0"
                        max="100"
-                       step="1"
-                       value="{{ $category['budget'] > 0 ? ($category['budget'] / $budget * 100) : 0 }}">
+                       step="0.1"
+                       value="0">
                 <span class="percentage">0%</span>
               </div>
             </div>
@@ -417,28 +416,188 @@ document.addEventListener('DOMContentLoaded', function() {
         const budgetSetter = document.getElementById('budgetSetter');
         const budgetDashboard = document.getElementById('budgetDashboard');
         
-        // Store original values
-        let originalTotalBudget = totalBudgetInput.value;
-        let originalAllocations = {};
-        
-        // Initialize original allocation values
-        categoryAllocations.forEach(input => {
-            originalAllocations[input.dataset.categoryId] = input.value;
+        // Cache DOM elements for better performance
+        const elements = {
+            totalBudget: document.getElementById('totalBudget'),
+            totalAllocated: document.getElementById('totalAllocated'),
+            remainingAllocation: document.getElementById('remainingAllocation'),
+            categoryAllocations: document.querySelectorAll('.category-allocation'),
+            allocationRanges: document.querySelectorAll('.allocation-range')
+        };
+
+        // Store values in memory to reduce DOM queries
+        let state = {
+            totalBudget: 0,
+            allocations: new Map(),
+            lastUpdate: 0
+        };
+
+        // Throttle function for smoother updates
+        function throttle(func, limit) {
+            let inThrottle;
+            return function(...args) {
+                if (!inThrottle) {
+                    func.apply(this, args);
+                    inThrottle = true;
+                    setTimeout(() => inThrottle = false, limit);
+                }
+            };
+        }
+
+        // Optimized update function
+        function updateAllocation(categoryId, amount, percentage) {
+            const now = performance.now();
+            if (now - state.lastUpdate < 16) return; // Limit to ~60fps
+            state.lastUpdate = now;
+
+            requestAnimationFrame(() => {
+                const range = document.querySelector(`.allocation-range[data-category-id="${categoryId}"]`);
+                const input = document.querySelector(`.category-allocation[data-category-id="${categoryId}"]`);
+                const percentageDisplay = range.parentElement.querySelector('.percentage');
+                const displayElement = document.querySelector(`.category-allocation-display[data-category-id="${categoryId}"]`);
+
+                if (range) range.value = percentage;
+                // Don't update input value if it's currently being edited
+                if (input && document.activeElement !== input) {
+                    input.value = amount;
+                }
+                if (percentageDisplay) percentageDisplay.textContent = `${Math.round(percentage)}%`;
+                if (displayElement) displayElement.textContent = amount.toLocaleString();
+            });
+        }
+
+        // Optimized summary update
+        function updateSummary() {
+            const now = performance.now();
+            if (now - state.lastUpdate < 16) return;
+            state.lastUpdate = now;
+
+            requestAnimationFrame(() => {
+                const totalAllocated = Array.from(state.allocations.values()).reduce((sum, val) => sum + val, 0);
+                const remaining = state.totalBudget - totalAllocated;
+
+                if (elements.totalAllocated) {
+                    elements.totalAllocated.innerHTML = `<span class="currency">{{ Auth::user()->currency_symbol }}</span>${totalAllocated.toLocaleString()}`;
+                }
+                if (elements.remainingAllocation) {
+                    elements.remainingAllocation.innerHTML = `<span class="currency">{{ Auth::user()->currency_symbol }}</span>${remaining.toLocaleString()}`;
+                    elements.remainingAllocation.style.color = remaining < 0 ? 'var(--danger-color)' : 'var(--text-primary)';
+                }
+            });
+        }
+
+        // Handle input changes
+        elements.categoryAllocations.forEach(input => {
+            input.addEventListener('input', throttle(function() {
+                const categoryId = this.dataset.categoryId;
+                let value = this.value;
+
+                // Allow empty input
+                if (value === '') {
+                    state.allocations.set(categoryId, 0);
+                    updateAllocation(categoryId, 0, 0);
+                    updateSummary();
+                    return;
+                }
+
+                // Convert to number and validate
+                const amount = Number(value);
+                if (isNaN(amount) || amount < 0) {
+                    this.value = '';
+                    state.allocations.set(categoryId, 0);
+                    updateAllocation(categoryId, 0, 0);
+                    updateSummary();
+                    return;
+                }
+
+                // Check if the new total would exceed the budget
+                const currentAllocation = state.allocations.get(categoryId) || 0;
+                const difference = amount - currentAllocation;
+                const totalAllocated = Array.from(state.allocations.values()).reduce((sum, val) => sum + val, 0);
+                
+                if (totalAllocated + difference > state.totalBudget) {
+                    showNotification('Total allocations cannot exceed total budget', 'error');
+                    this.value = currentAllocation;
+                    return;
+                }
+
+                // Update state and UI
+                state.allocations.set(categoryId, amount);
+                const percentage = state.totalBudget > 0 ? Math.min(100, (amount / state.totalBudget * 100)) : 0;
+                
+                // Batch updates
+                requestAnimationFrame(() => {
+                    updateAllocation(categoryId, amount, percentage);
+                    updateSummary();
+                });
+            }, 16));
         });
+
+        // Handle range changes
+        elements.allocationRanges.forEach(range => {
+            range.addEventListener('input', throttle(function() {
+                const categoryId = this.dataset.categoryId;
+                const percentage = Number(this.value);
+                const amount = (percentage / 100) * state.totalBudget;
+
+                // Update state
+                state.allocations.set(categoryId, amount);
+                
+                // Update UI
+                updateAllocation(categoryId, amount, percentage);
+                updateSummary();
+            }, 16));
+        });
+
+        // Handle total budget changes
+        if (elements.totalBudget) {
+            elements.totalBudget.addEventListener('input', throttle(function() {
+                const value = this.value;
+                if (value === '' || isNaN(value) || value < 0) {
+                    this.value = '0';
+                    state.totalBudget = 0;
+                } else {
+                    state.totalBudget = Number(value);
+                }
+
+                // Recalculate all allocations
+                elements.allocationRanges.forEach(range => {
+                    const categoryId = range.dataset.categoryId;
+                    const percentage = Number(range.value);
+                    const amount = Math.round((percentage / 100) * state.totalBudget);
+                    state.allocations.set(categoryId, amount);
+                    updateAllocation(categoryId, amount, percentage);
+                });
+
+                updateSummary();
+            }, 16));
+        }
+
+        // Initialize state
+        function initializeState() {
+            state.totalBudget = Number(elements.totalBudget.value) || 0;
+            elements.categoryAllocations.forEach(input => {
+                const categoryId = input.dataset.categoryId;
+                const amount = Number(input.value) || 0;
+                state.allocations.set(categoryId, amount);
+            });
+            updateSummary();
+        }
+
+        // Initialize on load
+        initializeState();
 
         if (editBudgetBtn) {
             editBudgetBtn.addEventListener('click', () => {
-                // Show budget setter and hide dashboard
                 budgetSetter.style.display = 'block';
                 budgetDashboard.style.display = 'none';
                 
-                // Store current values for potential cancellation
-                originalTotalBudget = totalBudgetInput.value;
-                categoryAllocations.forEach(input => {
-                    originalAllocations[input.dataset.categoryId] = input.value;
+                state.totalBudget = Number(totalBudgetInput.value) || 0;
+                elements.categoryAllocations.forEach(input => {
+                    const categoryId = input.dataset.categoryId;
+                    state.allocations.set(categoryId, Number(input.value) || 0);
                 });
                 
-                // Scroll to budget setter
                 window.scrollTo({
                     top: budgetSetter.offsetTop - 20,
                     behavior: 'smooth'
@@ -446,84 +605,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        if (totalBudgetInput) {
-            totalBudgetInput.addEventListener('input', updateAllocationLimits);
-        }
-
-        categoryAllocations.forEach(input => {
-            input.addEventListener('input', function() {
-                updateAllocationFromInput(this);
-                updateAllocationSummary();
-            });
-        });
-
-        allocationRanges.forEach(range => {
-            range.addEventListener('input', function() {
-                updateAllocationFromRange(this);
-                updateAllocationSummary();
-            });
-        });
-
-        function updateAllocationFromInput(input) {
-            const categoryId = input.dataset.categoryId;
-            const amount = Number(input.value);
-            const totalBudget = Number(totalBudgetInput.value);
-            const percentage = totalBudget > 0 ? Math.min(100, (amount / totalBudget * 100)) : 0;
-            
-            const range = document.querySelector(`.allocation-range[data-category-id="${categoryId}"]`);
-            const percentageDisplay = range.parentElement.querySelector('.percentage');
-            
-            range.value = percentage;
-            percentageDisplay.textContent = `${Math.round(percentage)}%`;
-        }
-
-        function updateAllocationFromRange(range) {
-            const categoryId = range.dataset.categoryId;
-            const percentage = Number(range.value);
-            const totalBudget = Number(totalBudgetInput.value);
-            const amount = (percentage / 100) * totalBudget;
-            
-            const input = document.querySelector(`.category-allocation[data-category-id="${categoryId}"]`);
-            const percentageDisplay = range.parentElement.querySelector('.percentage');
-            
-            input.value = Math.round(amount);
-            percentageDisplay.textContent = `${Math.round(percentage)}%`;
-        }
-
-        function updateAllocationLimits() {
-            const totalBudget = Number(totalBudgetInput.value);
-            allocationRanges.forEach(range => {
-                range.max = 100;
-            });
-            updateAllocationSummary();
-        }
-
-        function updateAllocationSummary() {
-            const totalBudget = Number(totalBudgetInput.value);
-            const totalAllocated = Array.from(categoryAllocations)
-                .reduce((sum, input) => sum + Number(input.value), 0);
-            const remaining = totalBudget - totalAllocated;
-            
-            document.getElementById('totalAllocated').textContent = `<span class="currency">{{ Auth::user()->currency_symbol }}</span>${totalAllocated.toLocaleString()}`;
-            document.getElementById('remainingAllocation').textContent = `<span class="currency">{{ Auth::user()->currency_symbol }}</span>${remaining.toLocaleString()}`;
-            
-            // Update visual feedback
-            const remainingElement = document.getElementById('remainingAllocation');
-            if (remaining < 0) {
-                remainingElement.style.color = 'var(--danger-color)';
-            } else {
-                remainingElement.style.color = 'var(--text-primary)';
-            }
-        }
-
         if (cancelBudgetBtn) {
             cancelBudgetBtn.addEventListener('click', () => {
                 // Restore original values
-                totalBudgetInput.value = originalTotalBudget;
-                categoryAllocations.forEach(input => {
+                elements.totalBudget.value = state.totalBudget;
+                elements.categoryAllocations.forEach(input => {
                     const categoryId = input.dataset.categoryId;
-                    input.value = originalAllocations[categoryId];
-                    updateAllocationFromInput(input);
+                    input.value = state.allocations.get(categoryId) || 0;
+                    updateAllocation(categoryId, input.value, Number(input.value) / state.totalBudget * 100);
                 });
                 
                 // Hide budget setter and show dashboard
@@ -534,18 +623,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (saveBudgetBtn) {
             saveBudgetBtn.addEventListener('click', async function() {
-                const totalBudget = Number(totalBudgetInput.value);
-                const totalAllocated = Array.from(categoryAllocations)
-                    .reduce((sum, input) => sum + Number(input.value), 0);
+                const totalBudget = Number(elements.totalBudget.value);
+                const totalAllocated = Array.from(state.allocations.values()).reduce((sum, val) => sum + val, 0);
                 
                 if (totalAllocated > totalBudget) {
                     showNotification('Total category allocations cannot exceed total budget', 'error');
                     return;
                 }
 
-                const budgets = Array.from(categoryAllocations).map(input => ({
-                    category_id: parseInt(input.dataset.categoryId),
-                    amount_limit: Number(input.value)
+                const budgets = Array.from(state.allocations.entries()).map(([categoryId, amount]) => ({
+                    category_id: parseInt(categoryId),
+                    amount_limit: Number(amount)
                 }));
 
                 const requestData = {
