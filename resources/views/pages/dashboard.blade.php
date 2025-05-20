@@ -13,7 +13,7 @@
           <div class="stat-icon"><i class="fas fa-piggy-bank"></i></div>
           <div>
             <p class="stat-label">Monthly Budget</p>
-            <p class="stat-value">₱{{ number_format($budget, 2) }}</p>
+            <p class="stat-value"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($budget, 2) }}</p>
           </div>
         </div>
       </div>
@@ -36,7 +36,7 @@
       <div class="input-group">
         <label for="totalBudget">Total Monthly Budget</label>
         <div class="input-field">
-          <span class="currency">₱</span>
+          <span class="currency">{{ Auth::user()->currency_symbol }}</span>
           <input type="number" id="totalBudget" name="amount_limit" placeholder="e.g. 25,000" min="0" step="100" required>
         </div>
       </div>
@@ -46,8 +46,8 @@
         <p class="subtitle">Set budget limits for each category</p>
         
         <div class="allocation-summary">
-          <span>Total Allocated: <strong id="totalAllocated">₱0.00</strong></span>
-          <span>Remaining: <strong id="remainingAllocation">₱0.00</strong></span>
+          <span>Total Allocated: <strong id="totalAllocated"><span class="currency">{{ Auth::user()->currency_symbol }}</span>0.00</strong></span>
+          <span>Remaining: <strong id="remainingAllocation"><span class="currency">{{ Auth::user()->currency_symbol }}</span>0.00</strong></span>
         </div>
 
         <div class="category-allocation-list">
@@ -58,11 +58,11 @@
                 <div class="category-color" style="background-color: {{ $category['color'] }};"></div>
                 <span class="category-name">{{ $category['name'] }}</span>
               </div>
-              <span class="category-amount">₱<span class="category-allocation-display">0.00</span></span>
+              <span class="category-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span><span class="category-allocation-display">0.00</span></span>
             </div>
             <div class="allocation-controls">
               <div class="allocation-input">
-                <span class="currency">₱</span>
+                <span class="currency">{{ Auth::user()->currency_symbol }}</span>
                 <input type="number" 
                        class="category-allocation" 
                        data-category-id="{{ $category['id'] }}"
@@ -89,7 +89,7 @@
               <span class="stat-percent">0%</span>
             </div>
             <div class="stat-footer">
-              <span class="stat-remaining">₱0.00 left</span>
+              <span class="stat-remaining"><span class="currency">{{ Auth::user()->currency_symbol }}</span>0.00 left</span>
             </div>
           </div>
           @endforeach
@@ -136,7 +136,7 @@
               <i class="fas fa-wallet"></i>
               <span class="stat-title">Total Budget</span>
             </div>
-            <div class="stat-value" id="totalBudgetDisplay">₱{{ number_format($budget, 2) }}</div>
+            <div class="stat-value" id="totalBudgetDisplay"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($budget, 2) }}</div>
             <div class="stat-progress">
               <div class="progress-bar">
                 <div class="progress-fill" style="width: {{ $budget > 0 ? min(100, (array_sum(array_column($categoryAnalysis, 'spent')) / $budget) * 100) : 0 }}%"></div>
@@ -166,7 +166,7 @@
                 @if($totalCategorySpent > $budget)
                   <span class="stat-warning"><i class="fas fa-exclamation-triangle"></i> Over budget</span>
                 @else
-                  <span class="stat-remaining">₱{{ number_format($remaining, 2) }} left</span>
+                  <span class="stat-remaining"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($remaining, 2) }} left</span>
                 @endif
               @else
                 <span class="stat-remaining">No budget set</span>
@@ -182,7 +182,7 @@
           <div class="category-budget-item">
             <div class="category-budget-header">
               <span class="category-name">{{ $category['name'] }}</span>
-              <span class="category-amount">₱{{ number_format($category['budget'], 2) }}</span>
+              <span class="category-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['budget'], 2) }}</span>
             </div>
             <input type="range" 
                    class="category-budget-slider" 
@@ -203,7 +203,7 @@
                 @if($category['remaining'] < 0)
                   <span class="stat-warning"><i class="fas fa-exclamation-triangle"></i> Over budget</span>
                 @else
-                  <span class="stat-remaining">₱{{ number_format($category['remaining'], 2) }} left</span>
+                  <span class="stat-remaining"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['remaining'], 2) }} left</span>
                 @endif
               @else
                 <span class="stat-remaining">No budget set</span>
@@ -250,13 +250,13 @@
           <div class="category-item" data-category-id="{{ $category['id'] }}">
             <div class="category-color" style="background-color: {{ $category['color'] }};"></div>
             <span class="category-name">{{ $category['name'] }}</span>
-            <span class="category-amount">₱{{ number_format($category['spent'], 2) }}</span>
+            <span class="category-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['spent'], 2) }}</span>
             <span class="category-percent">{{ $totalSpent > 0 ? round(($category['spent'] / $totalSpent) * 100) : 0 }}%</span>
           </div>
           @endforeach
           <div class="category-total">
             <span class="total-label">Total Spent</span>
-            <span class="total-amount">₱{{ number_format($totalSpent, 2) }}</span>
+            <span class="total-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($totalSpent, 2) }}</span>
           </div>
         </div>
       </div>
@@ -278,7 +278,7 @@
               <div class="transaction-category">{{ $transaction->category->name ?? 'Uncategorized' }}</div>
             </div>
             <div class="transaction-amount {{ $transaction->amount < 0 ? 'negative' : 'positive' }}">
-              {{ $transaction->amount < 0 ? '-' : '+' }}₱{{ number_format(abs($transaction->amount), 2) }}
+              {{ $transaction->amount < 0 ? '-' : '+' }}<span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format(abs($transaction->amount), 2) }}
             </div>
           </div>
           @empty
@@ -303,7 +303,7 @@
           <i class="fas fa-{{ $category['icon'] ?? 'shopping-bag' }}"></i>
           <span class="stat-title">{{ $category['name'] }}</span>
         </div>
-        <div class="stat-value">₱{{ number_format($category['spent'], 2) }}</div>
+        <div class="stat-value"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['spent'], 2) }}</div>
         <div class="stat-progress">
           <div class="progress-bar">
             <div class="progress-fill" style="width: {{ $category['budget'] > 0 ? min(100, ($category['spent'] / $category['budget']) * 100) : 0 }}%"></div>
@@ -315,7 +315,7 @@
             @if($category['remaining'] < 0)
               <span class="stat-warning"><i class="fas fa-exclamation-triangle"></i> Over budget</span>
             @else
-              <span class="stat-remaining">₱{{ number_format($category['remaining'], 2) }} left</span>
+              <span class="stat-remaining"><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['remaining'], 2) }} left</span>
             @endif
           @else
             <span class="stat-remaining">No budget set</span>
@@ -346,7 +346,7 @@
       <div class="form-group">
         <label for="transactionAmount">Amount</label>
         <div class="input-field">
-          <span class="currency">₱</span>
+          <span class="currency">{{ Auth::user()->currency_symbol }}</span>
           <input type="number" id="transactionAmount" name="amount" step="0.01" required>
         </div>
       </div>
@@ -504,8 +504,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 .reduce((sum, input) => sum + Number(input.value), 0);
             const remaining = totalBudget - totalAllocated;
             
-            document.getElementById('totalAllocated').textContent = `₱${totalAllocated.toLocaleString()}`;
-            document.getElementById('remainingAllocation').textContent = `₱${remaining.toLocaleString()}`;
+            document.getElementById('totalAllocated').textContent = `<span class="currency">{{ Auth::user()->currency_symbol }}</span>${totalAllocated.toLocaleString()}`;
+            document.getElementById('remainingAllocation').textContent = `<span class="currency">{{ Auth::user()->currency_symbol }}</span>${remaining.toLocaleString()}`;
             
             // Update visual feedback
             const remainingElement = document.getElementById('remainingAllocation');
@@ -660,7 +660,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return `₱${context.raw.toLocaleString()}`;
+                                    return `<span class="currency">{{ Auth::user()->currency_symbol }}</span>${context.raw.toLocaleString()}`;
                                 }
                             }
                         }
@@ -670,7 +670,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return '₱' + (value / 1000) + 'k';
+                                    return '{{ Auth::user()->currency_symbol }}' + (value / 1000) + 'k';
                                 }
                             }
                         }
@@ -709,7 +709,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             callbacks: {
                                 label: function(context) {
                                     const percentage = Math.round((context.raw / totalSpent) * 100);
-                                    return `${context.label}: ₱${context.raw.toLocaleString()} (${percentage}%)`;
+                                    return `${context.label}: <span class="currency">{{ Auth::user()->currency_symbol }}</span>${context.raw.toLocaleString()} (${percentage}%)`;
                                 }
                             }
                         }
@@ -728,7 +728,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     legendItem.innerHTML = `
                         <span class="legend-color" style="background-color: ${categoryColors[index]}"></span>
                         <span class="legend-label">${name}</span>
-                        <span class="legend-value">₱${categoryTotals[index].toLocaleString()} (${percentage}%)</span>
+                        <span class="legend-value"><span class="currency">{{ Auth::user()->currency_symbol }}</span>${categoryTotals[index].toLocaleString()} (${percentage}%)</span>
                     `;
                     legendContainer.appendChild(legendItem);
                 });

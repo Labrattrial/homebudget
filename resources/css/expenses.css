@@ -1,7 +1,9 @@
 body {
   font-family: 'Inter', sans-serif;
   margin: 0;
-  background-color: #f5f7fa;
+  background-color: #D3EBF9;
+  min-width: 100vw;
+  overflow-x: hidden;
 }
 
 .expenses-wrapper {
@@ -520,7 +522,7 @@ body {
 
 #searchInput {
   width: 100%;
-  padding: 0.65rem 1rem 0.65rem 2.8rem;
+  padding: 0.65rem 1rem 0.65rem 3.5rem;
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 0.95rem;
@@ -531,21 +533,20 @@ body {
   margin-top: -2px;
 }
 
-#searchInput:focus {
-  border-color: #4b8dbf;
-  box-shadow: 0 0 0 3px rgba(75, 141, 191, 0.1);
-  outline: none;
-}
-
 .search-container i {
   position: absolute;
-  left: 0.9rem;
+  left: 1rem;
   top: 50%;
   transform: translateY(-50%);
   color: #7f8c8d;
   font-size: 0.9rem;
   pointer-events: none;
   margin-top: -2px;
+}
+
+.search-container i svg.svg-inline--fa {
+  transform: translateX(30px);
+  position: relative;
 }
 
 /* Enhanced Date Input */
@@ -913,4 +914,10 @@ input[type="date"]:focus {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+}
+
+.modal-content select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }

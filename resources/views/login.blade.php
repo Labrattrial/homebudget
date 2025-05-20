@@ -66,16 +66,6 @@
           @enderror
         </div>
 
-        @if ($errors->any())
-          <div class="alert alert-danger">
-            <ul>
-              @foreach ($errors->all() as $error)
-                <li>{{ $error }}</li>
-              @endforeach
-            </ul>
-          </div>
-        @endif
-
         <!-- Login Button -->
       <button type="submit" class="sign-in-btn" id="loginBtn">
         Sign In

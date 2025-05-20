@@ -82,7 +82,7 @@
                 </div>
                 <div class="card-content">
                     <h3>Potential Savings</h3>
-                    <p class="amount">₱<span id="potentialSavings">0.00</span></p>
+                    <p class="amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span><span id="potentialSavings">0.00</span></p>
                     <p class="change">Based on 10% reduction</p>
                 </div>
             </div>
@@ -92,7 +92,7 @@
                 </div>
                 <div class="card-content">
                     <h3>Daily Average</h3>
-                    <p class="amount">₱<span id="dailyAverageCard">{{ number_format($dailyAverage ?? 0, 2) }}</span></p>
+                    <p class="amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span><span id="dailyAverageCard">{{ number_format($dailyAverage ?? 0, 2) }}</span></p>
                     <p class="change">Current period</p>
                 </div>
             </div>
@@ -182,8 +182,8 @@
                             @foreach($categoryBreakdown as $category)
                                 <tr>
                                     <td>{{ $category['name'] }}</td>
-                                    <td>₱{{ number_format($category['amount'], 2) }}</td>
-                                    <td>₱{{ number_format($category['allocated'] ?? 0, 2) }}</td>
+                                    <td><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['amount'], 2) }}</td>
+                                    <td><span class="currency">{{ Auth::user()->currency_symbol }}</span>{{ number_format($category['allocated'] ?? 0, 2) }}</td>
                                     <td>
                                         @if($category['allocated'] > 0)
                                             {{ round(($category['amount'] / $category['allocated']) * 100, 1) }}%
