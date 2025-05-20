@@ -430,7 +430,45 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (confirmed) {
                 setLoadingState('passwordForm', true);
-                this.submit();
+                
+                try {
+                    const formData = new FormData(this);
+                    const response = await fetch(this.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    const result = await response.json();
+                    setLoadingState('passwordForm', false);
+
+                    if (response.ok) {
+                        showToast('Password updated successfully!', 'success');
+                        this.reset();
+                        // Reset password strength meter
+                        updateStrengthMeter('');
+                    } else {
+                        if (result.errors) {
+                            // Handle validation errors
+                            if (result.errors.current_password) {
+                                document.getElementById('current-password-error').textContent = result.errors.current_password[0];
+                            }
+                            if (result.errors.new_password) {
+                                document.getElementById('new-password-error').textContent = result.errors.new_password[0];
+                            }
+                            if (result.errors.new_password_confirmation) {
+                                document.getElementById('confirm-password-error').textContent = result.errors.new_password_confirmation[0];
+                            }
+                        } else {
+                            showToast(result.message || 'Failed to update password', 'error');
+                        }
+                    }
+                } catch (error) {
+                    setLoadingState('passwordForm', false);
+                    showToast('An error occurred while updating your password', 'error');
+                }
             }
         }
     });
@@ -657,6 +695,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add this CSS to your existing styles
     document.head.insertAdjacentHTML('beforeend', `
         <style>
+            .validation-message {
+                color: #dc3545;
+                font-size: 0.875rem;
+                margin-top: 0.5rem;
+            }
+
             #password-requirements {
                 list-style: none;
                 padding: 0;

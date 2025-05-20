@@ -84,6 +84,11 @@ class SettingsController extends Controller
         $user = Auth::user();
 
         if (!$user || !$user instanceof \App\Models\User) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Authenticated user is not valid.'
+                ], 401);
+            }
             return redirect()->back()->withErrors(['error' => 'Authenticated user is not valid.']);
         }
 
@@ -102,6 +107,13 @@ class SettingsController extends Controller
             ]);
 
             if (!Hash::check($request->current_password, $user->password)) {
+                if ($request->ajax()) {
+                    return response()->json([
+                        'errors' => [
+                            'current_password' => ['Current password is incorrect.']
+                        ]
+                    ], 422);
+                }
                 return redirect()->back()->withErrors(['current_password' => 'Current password is incorrect.']);
             }
 
@@ -110,8 +122,18 @@ class SettingsController extends Controller
                 $user->save();
             });
 
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Password updated successfully!'
+                ]);
+            }
             return redirect()->back()->with('success', 'Password updated successfully!');
         } catch (\Exception $e) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Failed to update password: ' . $e->getMessage()
+                ], 500);
+            }
             return redirect()->back()->with('error', 'Failed to update password: ' . $e->getMessage());
         }
     }
