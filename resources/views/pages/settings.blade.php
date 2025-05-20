@@ -47,10 +47,18 @@
     <div class="profile-picture-container">
         <label for="profile_picture" class="profile-picture-label">
             <div class="profile-picture-wrapper">
-                        <img src="{{ Auth::user()->profile_picture_url }}" 
+                @if(Auth::user()->profile_picture)
+                    <img src="{{ Auth::user()->profile_picture_url }}" 
                         alt="Profile Picture" 
                         class="profile-picture"
-                        id="currentProfilePicture">
+                         id="currentProfilePicture"
+                         style="width: 100%; height: 100%; object-fit: cover;"
+                         onerror="this.onerror=null; this.src='{{ asset('images/default-profile.png') }}';">
+                @else
+                    <div class="profile-picture-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                @endif
                 <div class="profile-picture-preview" id="profilePicturePreview" style="display: none;"></div>
                 <div class="profile-picture-loading" id="profilePictureLoading" style="display: none;">
                     <i class="fas fa-spinner fa-spin"></i>
@@ -65,7 +73,10 @@
                 <i class="fas fa-times"></i> Cancel
             </button>
             <button type="button" class="btn btn-primary" id="confirmProfileUpdate">
-                <i class="fas fa-check"></i> Confirm
+                <span class="btn-text">Confirm</span>
+                <span class="btn-spinner" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </span>
             </button>
         </div>
     </div>
@@ -348,18 +359,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const btnText = submitBtn.querySelector('.btn-text');
         const btnSpinner = submitBtn.querySelector('.btn-spinner');
-        const overlay = document.getElementById('loadingOverlay');
 
         if (isLoading) {
             btnText.style.display = 'none';
             btnSpinner.style.display = 'inline-block';
-            overlay.style.display = 'flex';
-            submitBtn.disabled = true;
+            submitBtn.setAttribute('disabled', 'disabled');
         } else {
             btnText.style.display = 'inline-block';
             btnSpinner.style.display = 'none';
-            overlay.style.display = 'none';
-            submitBtn.disabled = false;
+            submitBtn.removeAttribute('disabled');
         }
     }
 
@@ -427,6 +435,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Currency Form submission
+    document.getElementById('currencyForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        setLoadingState('currencyForm', true);
+        this.submit();
+    });
+
     // Profile Picture Elements
     const profileInput = document.getElementById('profile_picture');
     const previewContainer = document.getElementById('profilePicturePreview');
@@ -438,6 +453,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmBtn = document.getElementById('confirmProfileUpdate');
     
     let selectedFile = null;
+
+    // Function to manage profile picture loading state
+    function setProfilePictureLoadingState(isLoading) {
+        if (confirmBtn) {
+            const btnText = confirmBtn.querySelector('.btn-text');
+            const btnSpinner = confirmBtn.querySelector('.btn-spinner');
+            
+            if (isLoading) {
+                btnText.style.display = 'none';
+                btnSpinner.style.display = 'inline-block';
+                confirmBtn.setAttribute('disabled', 'disabled');
+                cancelBtn.setAttribute('disabled', 'disabled');
+            } else {
+                btnText.style.display = 'inline-block';
+                btnSpinner.style.display = 'none';
+                confirmBtn.removeAttribute('disabled');
+                cancelBtn.removeAttribute('disabled');
+            }
+        }
+    }
 
     // Profile Picture Change Handler
     if (profileInput) {
@@ -492,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmBtn.addEventListener('click', async function() {
             if (!selectedFile) return;
 
-            setLoadingState('profileForm', true);
+            setProfilePictureLoadingState(true);
             
             try {
                 const formData = new FormData();
@@ -505,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 const result = await response.json();
-                setLoadingState('profileForm', false);
+                setProfilePictureLoadingState(false);
 
                 if (result.success) {
                     showToast(result.message, 'success');
@@ -516,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     resetProfilePictureDisplay();
                 }
             } catch (error) {
-                setLoadingState('profileForm', false);
+                setProfilePictureLoadingState(false);
                 showToast('An error occurred while updating your profile picture', 'error');
                 resetProfilePictureDisplay();
             }
@@ -533,19 +568,43 @@ document.addEventListener('DOMContentLoaded', function() {
             if (currentPicture) {
                 currentPicture.src = newUrl;
                 currentPicture.style.display = 'block';
+                currentPicture.onerror = function() {
+                    this.onerror = null;
+                    this.style.display = 'none';
+                    const iconDiv = document.createElement('div');
+                    iconDiv.className = 'profile-picture-icon';
+                    iconDiv.innerHTML = '<i class="fas fa-user"></i>';
+                    this.parentNode.appendChild(iconDiv);
+                };
             }
-            if (profileIcon) profileIcon.style.display = 'none';
         } else {
             previewContainer.style.display = 'none';
-            if (currentPicture) currentPicture.style.display = 'block';
-            if (profileIcon) profileIcon.style.display = 'block';
+            if (currentPicture) {
+                currentPicture.style.display = 'block';
+            }
+            const iconDiv = document.querySelector('.profile-picture-icon');
+            if (iconDiv) {
+                iconDiv.style.display = 'block';
+            }
         }
     }
 
     // Update all profile pictures on the page
     function updateAllProfilePictures(newUrl) {
         document.querySelectorAll('.profile-picture, .user-avatar').forEach(img => {
-            img.src = newUrl;
+            if (newUrl) {
+                img.src = newUrl;
+            } else {
+                img.src = '{{ asset('images/default-profile.png') }}';
+            }
+            img.onerror = function() {
+                this.onerror = null;
+                this.style.display = 'none';
+                const iconDiv = document.createElement('div');
+                iconDiv.className = 'profile-picture-icon';
+                iconDiv.innerHTML = '<i class="fas fa-user"></i>';
+                this.parentNode.appendChild(iconDiv);
+            };
         });
     }
 

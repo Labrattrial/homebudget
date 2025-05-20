@@ -14,57 +14,70 @@ class SettingsController extends Controller
     private const DEFAULT_PROFILE_PICTURE = 'defaults/default-profile.png';
 
     public function updateProfile(Request $request)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    if (!$user || !$user instanceof \App\Models\User) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Authenticated user is not valid.'
-        ], 401);
-    }
+        if (!$user || !$user instanceof \App\Models\User) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Authenticated user is not valid.'
+            ], 401);
+        }
 
-    try {
-        $request->validate([
-            'profile_picture' => 'required|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
+        try {
+            $request->validate([
+                'profile_picture' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            ]);
 
-        $newProfileUrl = null;
-
-        DB::transaction(function () use ($request, $user, &$newProfileUrl) {
-                // Delete old profile picture if exists and is not the default
-                if ($user->profile_picture && $user->profile_picture !== self::DEFAULT_PROFILE_PICTURE) {
-                    $oldPath = 'public/' . $user->profile_picture;
-                if (Storage::exists($oldPath)) {
-                    Storage::delete($oldPath);
-                }
-            }
-
-                // Store new profile picture
+            DB::transaction(function () use ($request, $user) {
+                // Get the image file and convert to binary
                 $file = $request->file('profile_picture');
-                $filename = 'profile_pictures/' . time() . '_' . $file->getClientOriginalName();
-                $path = $file->storeAs('public', $filename);
                 
-                // Save the relative path to the database
-                $user->profile_picture = $filename;
-            $user->save();
-                
-                // Return the full URL for the response
-                $newProfileUrl = Storage::url($filename);
-        });
+                // Validate file exists and is readable
+                if (!$file || !$file->isValid()) {
+                    throw new \Exception('Invalid file upload');
+                }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Profile picture updated successfully!',
-            'newProfilePictureUrl' => $newProfileUrl
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to update profile picture: ' . $e->getMessage()
-        ], 500);
+                // Get file contents and validate
+                $imageData = file_get_contents($file->getRealPath());
+                if ($imageData === false) {
+                    throw new \Exception('Failed to read image file');
+                }
+
+                // Log the size of the image data
+                \Log::info('Read image data with size: ' . strlen($imageData), ['user_id' => $user->id]);
+
+                // Validate image data
+                if (!getimagesizefromstring($imageData)) {
+                    throw new \Exception('Invalid image data');
+                }
+                
+                // Save the binary data directly to the database
+                $user->profile_picture = $imageData;
+                $user->save();
+
+                // Log successful save
+                \Log::info('Profile picture saved successfully!', ['user_id' => $user->id]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile picture updated successfully!',
+                'newProfilePictureUrl' => $user->profile_picture_url
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Profile picture update failed: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update profile picture. Please try again.'
+            ], 500);
+        }
     }
-}
 
     public function updatePassword(Request $request)
     {

@@ -53,14 +53,23 @@ class User extends Authenticatable
 
     public function getProfilePictureUrlAttribute()
     {
-        if ($this->profile_picture) {
-            // Check if the file exists in storage
-            if (Storage::exists('public/' . $this->profile_picture)) {
-                return Storage::url($this->profile_picture);
-            }
+        if (!$this->profile_picture) {
+            return asset('images/default-profile.png');
         }
-        // Return default profile picture if no custom picture exists
-        return Storage::url('defaults/default-profile.png');
+
+        // Convert binary data to base64
+        $base64 = base64_encode($this->profile_picture);
+        
+        // Detect MIME type from binary data
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->buffer($this->profile_picture);
+
+        // Default to image/jpeg if detection fails or is not an image type
+        if (!$mime || !str_starts_with($mime, 'image/')) {
+            $mime = 'image/jpeg'; // Fallback
+        }
+
+        return "data:{$mime};base64,{$base64}";
     }
 
     public function getProfilePicturePathAttribute()

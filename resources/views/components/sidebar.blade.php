@@ -23,9 +23,9 @@
   </ul>
   <div class="user-section">
     <div class="user-info">
-      @if(Auth::check() && Auth::user()->profile_picture)
+      @if(Auth::check() && Auth::user()->profile_picture_url)
         <div class="profile-pic">
-          <img src="{{ Auth::user()->profile_picture }}" alt="Profile Picture" class="sidebar-profile-pic">
+          <img src="{{ Auth::user()->profile_picture_url }}" alt="Profile Picture" class="sidebar-profile-pic">
         </div>
       @else
         <div class="profile-pic">

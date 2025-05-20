@@ -34,11 +34,11 @@
       <input type="hidden" id="currentMonth" value="{{ date('Y-m') }}">
       
       <div class="input-group">
-        <label for="totalBudget">Total Monthly Budget</label>
-        <div class="input-field">
+          <label for="totalBudget">Total Monthly Budget</label>
+          <div class="input-field">
           <span class="currency">{{ Auth::user()->currency_symbol }}</span>
-          <input type="number" id="totalBudget" name="amount_limit" placeholder="e.g. 25,000" min="0" step="100" required>
-        </div>
+              <input type="number" id="totalBudget" name="amount_limit" placeholder="e.g. 25,000" min="0" step="100" required>
+          </div>
       </div>
 
       <div class="category-budget-setter">
@@ -54,9 +54,9 @@
           @foreach($categoryAnalysis as $category)
           <div class="category-budget-item">
             <div class="category-budget-header">
-              <div class="category-info">
-                <div class="category-color" style="background-color: {{ $category['color'] }};"></div>
-                <span class="category-name">{{ $category['name'] }}</span>
+            <div class="category-info">
+              <div class="category-color" style="background-color: {{ $category['color'] }};"></div>
+              <span class="category-name">{{ $category['name'] }}</span>
               </div>
               <span class="category-amount"><span class="currency">{{ Auth::user()->currency_symbol }}</span><span class="category-allocation-display">0.00</span></span>
             </div>
